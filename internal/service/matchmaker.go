@@ -56,27 +56,23 @@ func (s *MatchmakerService) processMood(mood string, isStrictDefault bool) {
 
 			if userA.TelegramID == userB.TelegramID { continue }
 
-			// 1. Cek Lokasi (Logic lama)
+			// 1. Cek Lokasi
 			if !s.checkLocationMatch(userA, userB) { continue }
 
-			// 2. Logic Match (Strict vs Mixed)
-			// --- AWAL PERUBAHAN: LOGIKA VIP FILTER ---
-			
-			// Default match adalah TRUE (untuk mode Fun/Mixed)
+			// 2. Logic Match
 			isMatch := true
 			
-			// Tapi, jika Mode Default Strict (Dating) ATAU Usernya VIP,
-			// Kita paksa cek Gender Preference.
-			
+			// Cek apakah filter harus aktif
 			shouldCheckStrictA := isStrictDefault || userA.IsVIP
 			shouldCheckStrictB := isStrictDefault || userB.IsVIP
 
-			// Logic VIP: 
-			// Jika A VIP -> A harus cocok dengan B (A's pref matches B's gender)
-			// Jika B VIP -> B harus cocok dengan A
+			// LOGIKA VIP:
+			// Jika user VIP, kita hormati preferensinya.
+			// TAPI, jika preferensinya "both", berarti dia mau sama siapa aja (Fast Match).
 			
 			matchAtoB := true
 			if shouldCheckStrictA {
+				// Jika A VIP dan Pref "Both", otomatis True. Jika tidak, cek gender B.
 				matchAtoB = (userA.Preference == "both" || userA.Preference == userB.Gender)
 			}
 
@@ -86,7 +82,6 @@ func (s *MatchmakerService) processMood(mood string, isStrictDefault bool) {
 			}
 
 			isMatch = matchAtoB && matchBtoA
-			// --- AKHIR PERUBAHAN ---
 
 			if isMatch {
 				s.executeMatch(userA, userB)

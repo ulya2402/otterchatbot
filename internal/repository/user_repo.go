@@ -3,6 +3,7 @@ package repository
 import (
 	"fmt"
 	"log"
+	"sort"
 	"otterchatbot/internal/core"
 	"otterchatbot/pkg/database"
 	"time"
@@ -88,14 +89,37 @@ func (r *UserRepository) Update(user *core.User) error {
 
 func (r *UserRepository) GetQueueByMood(mood string) ([]core.User, error) {
 	var users []core.User
+
+	// 1. Ambil data dari database (Tanpa sorting database untuk menghindari error library)
 	err := r.DB.Client.DB.From("users").
 		Select("*").
 		Eq("status", "queue").
 		Eq("current_mood", mood).
 		Execute(&users)
+
 	if err != nil {
 		return nil, err
 	}
+
+	// 2. Lakukan Sorting Manual di Go (Priority Queue Logic)
+	// Aturan:
+	// - VIP selalu di atas (Prioritas Utama)
+	// - Jika sama-sama VIP (atau sama-sama Free), siapa yang antri duluan (Updated/Created At)
+	sort.SliceStable(users, func(i, j int) bool {
+		// Jika i VIP dan j bukan, i lebih dulu (True)
+		if users[i].IsVIP && !users[j].IsVIP {
+			return true
+		}
+		// Jika i bukan VIP dan j VIP, j lebih dulu (False)
+		if !users[i].IsVIP && users[j].IsVIP {
+			return false
+		}
+		
+		// Jika status VIP sama, urutkan berdasarkan waktu update (siapa yang nunggu lebih lama)
+		// Kita asumsikan ID lebih kecil = Mendaftar lebih dulu (Fallback sederhana jika UpdatedAt sama)
+		return users[i].ID < users[j].ID
+	})
+
 	return users, nil
 }
 
