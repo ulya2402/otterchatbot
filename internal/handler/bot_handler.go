@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"log"
+	"otterchatbot/config"
 	"otterchatbot/internal/core"
 	"otterchatbot/internal/repository"
 	"otterchatbot/pkg/i18n"
@@ -17,13 +18,16 @@ type BotHandler struct {
 	Bot      *telegram.Client
 	UserRepo *repository.UserRepository
 	I18n     *i18n.I18nService
+	Admin    *AdminHandler
 }
 
-func NewBotHandler(bot *telegram.Client, userRepo *repository.UserRepository, i18n *i18n.I18nService) *BotHandler {
+func NewBotHandler(bot *telegram.Client, userRepo *repository.UserRepository, i18n *i18n.I18nService, cfg *config.Config) *BotHandler {
 	return &BotHandler{
 		Bot:      bot,
 		UserRepo: userRepo,
 		I18n:     i18n,
+		// Inisialisasi Admin Handler di sini
+		Admin:    NewAdminHandler(bot, userRepo, cfg),
 	}
 }
 
@@ -41,6 +45,14 @@ func (h *BotHandler) HandleUpdate(update telegram.Update) {
 func (h *BotHandler) handleMessage(msg *telegram.Message) {
 	telegramID := msg.From.ID
 	chatID := msg.Chat.ID
+
+	if strings.HasPrefix(msg.Text, "/") && h.Admin.IsAdmin(telegramID) {
+		cmd := strings.Split(msg.Text, " ")[0]
+		if cmd == "/stats" || cmd == "/broadcast" || cmd == "/addvip" {
+			h.Admin.HandleCommand(msg)
+			return // Stop proses, jangan lanjut ke logic user biasa
+		}
+	}
 	
 	user, err := h.UserRepo.GetByTelegramID(telegramID)
 	if err != nil {
@@ -55,6 +67,11 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 
 	if msg.Text == "/stop" {
 		h.stopChat(user)
+		return
+	}
+
+	if msg.Text == "/reconnect" {
+		h.handleReconnect(user)
 		return
 	}
 
@@ -78,6 +95,9 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 	case "/start":
 		// FIX: Parameter false, 0 (Pesan baru)
 		h.sendMainMenu(chatID, user, false, 0)
+
+	case "/vip":
+		h.sendVipInfo(chatID, user.LanguageCode, false, 0)
 		
 	case "/profile":
 		h.sendUserProfile(chatID, user, false)
@@ -90,8 +110,8 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 		h.sendLangSelector(chatID, user.LanguageCode, false, 0, "profile")
 
 	case "/help":
-		// FIX: Parameter false, 0 (Pesan baru)
-		h.sendInfoMessage(chatID, user.LanguageCode, "help_text", false, 0)
+        // FIX: Arahkan ke Menu Help Interaktif
+		h.sendHelpMenu(chatID, user.LanguageCode, false, 0)
 
 	default:
 		if user.Status == "queue" {
@@ -101,6 +121,96 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 			h.sendMainMenu(chatID, user, false, 0)
 		}
 	}
+}
+
+func escapeHTML(text string) string {
+	text = strings.ReplaceAll(text, "&", "&amp;")
+	text = strings.ReplaceAll(text, "<", "&lt;")
+	text = strings.ReplaceAll(text, ">", "&gt;")
+	return text
+}
+
+func (h *BotHandler) handleReconnect(user *core.User) {
+	// Cek VIP
+	if !user.IsVIP {
+		h.Bot.SendMessage(user.TelegramID, "🔒 <b>VIP Feature</b>\nReconnect is only available for VIP members.")
+		return
+	}
+
+	if user.LastPartnerID == 0 {
+		h.Bot.SendMessage(user.TelegramID, "⚠️ You don't have a previous partner to reconnect with.")
+		return
+	}
+
+	// Cek status mantan
+	partner, err := h.UserRepo.GetByTelegramID(user.LastPartnerID)
+	if err != nil || partner == nil {
+		h.Bot.SendMessage(user.TelegramID, "⚠️ Previous partner not found.")
+		return
+	}
+
+	if partner.Status != "idle" {
+		h.Bot.SendMessage(user.TelegramID, "⚠️ Previous partner is currently busy (chatting/queueing). Try again later.")
+		return
+	}
+
+	// EKSEKUSI RECONNECT (Force Match)
+	user.Status = "chatting"
+	user.PartnerID = partner.TelegramID
+	
+	partner.Status = "chatting"
+	partner.PartnerID = user.TelegramID
+
+	_ = h.UserRepo.Update(user)
+	_ = h.UserRepo.Update(partner)
+
+	// Hapus pesan menu lama di kedua belah pihak agar bersih
+	if user.LastMessageID != 0 { _ = h.Bot.DeleteMessage(user.TelegramID, user.LastMessageID) }
+	if partner.LastMessageID != 0 { _ = h.Bot.DeleteMessage(partner.TelegramID, partner.LastMessageID) }
+
+	h.Bot.SendMessage(user.TelegramID, "🔄 <b>Reconnected!</b> You are back with your previous partner.")
+	h.Bot.SendMessage(partner.TelegramID, "🔄 <b>Reconnected!</b> Your previous partner reconnected with you (VIP Feature).")
+}
+
+func (h *BotHandler) sendVipInfo(chatID int64, lang string, isEdit bool, msgID int) {
+	text := h.I18n.Get(lang, "vip_info")
+	
+	// Tombol Link ke Admin
+	adminURL := h.I18n.Get(lang, "vip_contact_url")
+	
+	keyboard := telegram.InlineKeyboardMarkup{
+		InlineKeyboard: [][]telegram.InlineKeyboardButton{
+			{
+				// Tombol URL (tidak mengirim callback ke bot, tapi membuka link)
+				{Text: h.I18n.Get(lang, "btn_contact_admin"), Url: adminURL},
+			},
+			{
+				{Text: "🏠 Main Menu", CallbackData: "back:menu"},
+			},
+		},
+	}
+	h.sendOrEdit(chatID, text, keyboard, isEdit, msgID)
+}
+
+// --- FUNGSI BARU: MENAMPILKAN MENU HELP INTERAKTIF ---
+func (h *BotHandler) sendHelpMenu(chatID int64, lang string, isEdit bool, msgID int) {
+	text := h.I18n.Get(lang, "help_menu")
+	
+	keyboard := telegram.InlineKeyboardMarkup{
+		InlineKeyboard: [][]telegram.InlineKeyboardButton{
+			{
+				{Text: h.I18n.Get(lang, "help_btn_basic"), CallbackData: "help:basic"},
+				{Text: h.I18n.Get(lang, "help_btn_cmd"), CallbackData: "help:cmd"},
+			},
+			{
+				{Text: h.I18n.Get(lang, "help_btn_rules"), CallbackData: "help:rules"},
+			},
+			{
+				{Text: "🏠 Main Menu", CallbackData: "back:menu"},
+			},
+		},
+	}
+	h.sendOrEdit(chatID, text, keyboard, isEdit, msgID)
 }
 
 func (h *BotHandler) cleanStatus(user *core.User) {
@@ -120,18 +230,18 @@ func (h *BotHandler) sendMainMenu(chatID int64, user *core.User, isEdit bool, ms
 			{
 				{Text: h.I18n.Get(user.LanguageCode, "btn_search"), CallbackData: "cmd:search"},
 			},
+            // Update baris ini untuk menampilkan tombol VIP
 			{
 				{Text: h.I18n.Get(user.LanguageCode, "btn_profile"), CallbackData: "cmd:profile"},
-				{Text: h.I18n.Get(user.LanguageCode, "btn_lang"), CallbackData: "edit:lang_from_menu"},
+				{Text: h.I18n.Get(user.LanguageCode, "btn_vip"), CallbackData: "cmd:vip"},
 			},
 			{
 				{Text: h.I18n.Get(user.LanguageCode, "btn_help"), CallbackData: "cmd:help"},
-				{Text: h.I18n.Get(user.LanguageCode, "btn_about"), CallbackData: "cmd:about"},
+				{Text: h.I18n.Get(user.LanguageCode, "btn_lang"), CallbackData: "edit:lang_from_menu"},
 			},
 		},
 	}
 
-	// Gunakan fungsi helper sendOrEdit agar konsisten (Edit jika tombol back, Send jika /start)
 	h.sendOrEdit(chatID, caption, keyboard, isEdit, msgID)
 }
 
@@ -163,7 +273,8 @@ func (h *BotHandler) sendUserProfile(chatID int64, user *core.User, isEdit bool)
 	statusText := "Free"
 	if user.IsVIP { statusText = "🌟 VIP" }
 
-	text := fmt.Sprintf(viewTemplate, user.FirstName, gender, pref, loc, statusText)
+	// FIX: Menggunakan escapeHTML untuk nama user
+	text := fmt.Sprintf(viewTemplate, escapeHTML(user.FirstName), gender, pref, loc, statusText)
 
 	keyboard := telegram.InlineKeyboardMarkup{
 		InlineKeyboard: [][]telegram.InlineKeyboardButton{
@@ -173,10 +284,8 @@ func (h *BotHandler) sendUserProfile(chatID int64, user *core.User, isEdit bool)
 			},
 			{
 				{Text: h.I18n.Get(user.LanguageCode, "btn_edit_loc"), CallbackData: "edit:loc"},
-				// FIX: Callback spesifik
 				{Text: h.I18n.Get(user.LanguageCode, "btn_lang"), CallbackData: "edit:lang_from_profile"},
 			},
-			// FIX: Tombol Back ke Menu Utama
 			{
 				{Text: "🏠 Main Menu", CallbackData: "back:menu"},
 			},
@@ -202,14 +311,13 @@ func (h *BotHandler) relayMessage(sender *core.User, msg *telegram.Message) {
 }
 
 func (h *BotHandler) stopChat(initiator *core.User) {
-	// 1. Idle -> Arahkan ke Mood Selector (Search)
+	// 1. IDLE: Jika tidak sedang ngapa-ngapain, langsung kasih menu search
 	if initiator.Status == "idle" {
-		// FIX: Redirect ke sendMoodSelector, bukan sendMainMenu
 		h.sendMoodSelector(initiator.TelegramID, initiator.LanguageCode, false, 0)
 		return
 	}
 
-	// 2. Queue -> Cancel & Arahkan ke Mood Selector (Search)
+	// 2. QUEUE: Jika sedang antri, batalkan antrian
 	if initiator.Status == "queue" {
 		initiator.Status = "idle"
 		initiator.PartnerID = 0 
@@ -221,33 +329,53 @@ func (h *BotHandler) stopChat(initiator *core.User) {
 			_, _ = h.Bot.SendMessage(initiator.TelegramID, "⛔ Search cancelled.")
 		}
 		
-		// FIX: Redirect ke sendMoodSelector
 		h.sendMoodSelector(initiator.TelegramID, initiator.LanguageCode, false, 0)
 		return
 	}
 
-	// 3. Chatting -> End & Arahkan ke Mood Selector (Search)
+	// 3. CHATTING: Jika sedang chat, putuskan hubungan
 	partnerID := initiator.PartnerID
 	
+	// Simpan Mantan & Reset Initiator
+	initiator.LastPartnerID = partnerID 
 	initiator.Status = "idle"
 	initiator.PartnerID = 0
 	_ = h.UserRepo.Update(initiator)
 	
-	_, _ = h.Bot.SendMessage(initiator.TelegramID, h.I18n.Get(initiator.LanguageCode, "chat_ended"))
-	
-	// FIX: Redirect ke sendMoodSelector
+	// Kirim pesan Stop + Tombol Reconnect (Teaser)
+	stopText := h.I18n.Get(initiator.LanguageCode, "chat_ended")
+	reconnectBtn := telegram.InlineKeyboardMarkup{
+		InlineKeyboard: [][]telegram.InlineKeyboardButton{
+			{{Text: h.I18n.Get(initiator.LanguageCode, "btn_reconnect"), CallbackData: "cmd:reconnect_teaser"}},
+		},
+	}
+	_, _ = h.Bot.SendMessageComplex(telegram.SendMessageRequest{
+		ChatID: initiator.TelegramID, Text: stopText, ReplyMarkup: reconnectBtn, ParseMode: "HTML",
+	})
+
+	// Tampilkan Menu Search lagi
 	h.sendMoodSelector(initiator.TelegramID, initiator.LanguageCode, false, 0)
 
+	// Reset Partner (Korban)
 	if partnerID != 0 {
 		partner, err := h.UserRepo.GetByTelegramID(partnerID)
 		if err == nil && partner != nil && partner.PartnerID == initiator.TelegramID {
+			partner.LastPartnerID = initiator.TelegramID
 			partner.Status = "idle"
 			partner.PartnerID = 0
 			_ = h.UserRepo.Update(partner)
 
-			_, _ = h.Bot.SendMessage(partner.TelegramID, h.I18n.Get(partner.LanguageCode, "partner_left"))
-			
-			// FIX: Partner juga diredirect ke sendMoodSelector
+			// Kirim pesan Partner Left + Tombol Reconnect (Teaser)
+			stopTextPartner := h.I18n.Get(partner.LanguageCode, "partner_left")
+			reconnectBtnPartner := telegram.InlineKeyboardMarkup{
+				InlineKeyboard: [][]telegram.InlineKeyboardButton{
+					{{Text: h.I18n.Get(partner.LanguageCode, "btn_reconnect"), CallbackData: "cmd:reconnect_teaser"}},
+				},
+			}
+			_, _ = h.Bot.SendMessageComplex(telegram.SendMessageRequest{
+				ChatID: partner.TelegramID, Text: stopTextPartner, ReplyMarkup: reconnectBtnPartner, ParseMode: "HTML",
+			})
+
 			h.sendMoodSelector(partner.TelegramID, partner.LanguageCode, false, 0)
 		}
 	}
@@ -391,52 +519,106 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 	user, err := h.UserRepo.GetByTelegramID(telegramID)
 	if err != nil || user == nil { return }
 
-	// --- STOP/CANCEL ---
+	// --- STOP CHAT ---
 	if data == "cmd:stop" {
 		h.stopChat(user)
 		return
 	}
 
-	// --- NAVIGASI UTAMA (SEKARANG PAKE EDIT SEMUA) ---
+	// --- LOGIKA RECONNECT TEASER (UPSELLING) ---
+	if data == "cmd:reconnect_teaser" {
+		if user.IsVIP {
+			// Jika user VIP, jalankan reconnect beneran
+			h.handleReconnect(user)
+		} else {
+			// Jika user GRATIS, tawarkan VIP
+			pitchText := h.I18n.Get(user.LanguageCode, "vip_pitch")
+			keyboard := telegram.InlineKeyboardMarkup{
+				InlineKeyboard: [][]telegram.InlineKeyboardButton{
+					{{Text: h.I18n.Get(user.LanguageCode, "btn_vip"), CallbackData: "cmd:vip"}},
+				},
+			}
+			_, _ = h.Bot.SendMessageComplex(telegram.SendMessageRequest{
+				ChatID: chatID, Text: pitchText, ReplyMarkup: keyboard, ParseMode: "HTML",
+			})
+		}
+		return
+	}
+
+	// --- MENU UTAMA & NAVIGASI ---
+	
 	if data == "cmd:search" {
+		_ = h.Bot.DeleteMessage(chatID, msgID) 
 		h.cleanStatus(user)
-		// Edit pesan menu menjadi mood selector
-		h.sendMoodSelector(chatID, user.LanguageCode, true, msgID)
+		h.sendMoodSelector(chatID, user.LanguageCode, false, 0)
 		return
 	}
 	if data == "cmd:profile" {
-		// Edit pesan menu menjadi profile
-		h.sendUserProfile(chatID, user, true)
+		_ = h.Bot.DeleteMessage(chatID, msgID)
+		h.sendUserProfile(chatID, user, false)
 		return
 	}
+	
+	// -- INFO VIP --
+	if data == "cmd:vip" {
+		_ = h.Bot.DeleteMessage(chatID, msgID)
+		h.sendVipInfo(chatID, user.LanguageCode, false, 0)
+		return
+	}
+
+	// -- MENU HELP (INTERAKTIF) --
 	if data == "cmd:help" {
-		// Edit pesan menu menjadi help
-		h.sendInfoMessage(chatID, user.LanguageCode, "help_text", true, msgID)
+		_ = h.Bot.DeleteMessage(chatID, msgID)
+		h.sendHelpMenu(chatID, user.LanguageCode, false, 0)
 		return
 	}
+	
+	// Sub-menu Help (Basic, Cmd, Rules)
+	if strings.HasPrefix(data, "help:") {
+		topic := strings.Split(data, ":")[1]
+		contentKey := "help_content_" + topic
+		
+		text := h.I18n.Get(user.LanguageCode, contentKey)
+		keyboard := telegram.InlineKeyboardMarkup{
+			InlineKeyboard: [][]telegram.InlineKeyboardButton{
+				{{Text: "🔙 Back to Help", CallbackData: "back:help_menu"}},
+			},
+		}
+		h.sendOrEdit(chatID, text, keyboard, true, msgID)
+		return
+	}
+
+	if data == "back:help_menu" {
+		h.sendHelpMenu(chatID, user.LanguageCode, true, msgID)
+		return
+	}
+
 	if data == "cmd:about" {
-		// Edit pesan menu menjadi about
-		h.sendInfoMessage(chatID, user.LanguageCode, "about_text", true, msgID)
+		_ = h.Bot.DeleteMessage(chatID, msgID)
+		h.sendInfoMessage(chatID, user.LanguageCode, "about_text", false, 0)
 		return
 	}
+
+	// --- NAVIGASI UMUM ---
+	
 	if data == "edit:lang_from_menu" {
-		// Edit pesan menu menjadi lang selector
-		h.sendLangSelector(chatID, user.LanguageCode, true, msgID, "menu")
+		_ = h.Bot.DeleteMessage(chatID, msgID)
+		h.sendLangSelector(chatID, user.LanguageCode, false, 0, "menu")
 		return
 	}
 
-	// --- NAVIGASI KEMBALI ---
 	if data == "back:menu" {
-		// Edit pesan apa pun kembali menjadi Menu Utama
-		h.sendMainMenu(chatID, user, true, msgID)
+		_ = h.Bot.DeleteMessage(chatID, msgID)
+		h.sendMainMenu(chatID, user, false, 0)
 		return
 	}
 
-	// --- PROFILE ACTIONS ---
 	if data == "back:profile" {
 		h.sendUserProfile(chatID, user, true)
 		return
 	}
+
+	// --- EDIT SETTINGS (PROFILE) ---
 	if data == "edit:gender" {
 		h.sendGenderSelector(chatID, user.LanguageCode, true, msgID)
 		return
@@ -465,7 +647,8 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 		_ = h.UserRepo.Update(user)
 
 		if origin == "menu" {
-			h.sendMainMenu(chatID, user, true, msgID)
+			_ = h.Bot.DeleteMessage(chatID, msgID)
+			h.sendMainMenu(chatID, user, false, 0)
 		} else {
 			h.sendUserProfile(chatID, user, true)
 		}

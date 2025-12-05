@@ -16,5 +16,7 @@ type User struct {
 	IsVIP         bool      `json:"is_vip"`
 	Location      string    `json:"location"`       
 	LastMessageID int       `json:"last_message_id"` 
+	VipExpiresAt  *time.Time `json:"vip_expires_at"`  // Pointer biar bisa NULL
+	LastPartnerID int64      `json:"last_partner_id"` // Simpan mantan
 	CreatedAt     time.Time `json:"created_at,omitempty"`
 }

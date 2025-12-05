@@ -40,10 +40,9 @@ type SendMessageRequest struct {
 	ReplyMarkup interface{} `json:"reply_markup,omitempty"`
 }
 
-// BARU: Request untuk kirim foto
 type SendPhotoRequest struct {
 	ChatID      int64       `json:"chat_id"`
-	Photo       string      `json:"photo"` // URL foto
+	Photo       string      `json:"photo"`
 	Caption     string      `json:"caption,omitempty"`
 	ParseMode   string      `json:"parse_mode,omitempty"`
 	ReplyMarkup interface{} `json:"reply_markup,omitempty"`
@@ -62,5 +61,7 @@ type InlineKeyboardMarkup struct {
 
 type InlineKeyboardButton struct {
 	Text         string `json:"text"`
-	CallbackData string `json:"callback_data"`
+	CallbackData string `json:"callback_data,omitempty"`
+	// FIX: Menambahkan field Url
+	Url          string `json:"url,omitempty"`
 }

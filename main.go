@@ -29,7 +29,7 @@ func main() {
 
 	userRepo := repository.NewUserRepository(supabaseClient)
 	botClient := telegram.NewClient(cfg.BotToken)
-	botHandler := handler.NewBotHandler(botClient, userRepo, translator)
+	botHandler := handler.NewBotHandler(botClient, userRepo, translator, cfg)
 	matchmakerService := service.NewMatchmakerService(userRepo, botClient, translator)
 
 	// Jalankan Matchmaker di background (Goroutine)

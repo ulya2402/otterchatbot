@@ -37,44 +37,56 @@ func (s *MatchmakerService) Start() {
 	}
 }
 
-func (s *MatchmakerService) processMood(mood string, isStrict bool) {
+func (s *MatchmakerService) processMood(mood string, isStrictDefault bool) {
 	users, err := s.UserRepo.GetQueueByMood(mood)
-	if err != nil {
-		log.Printf("Error fetching queue for %s: %v", mood, err)
-		return
-	}
+	if err != nil { return }
 
-	if len(users) < 2 {
-		return
-	}
+	if len(users) < 2 { return }
 
 	matchedIndices := make(map[int]bool)
 
 	for i := 0; i < len(users); i++ {
-		if matchedIndices[i] {
-			continue
-		}
+		if matchedIndices[i] { continue }
 
 		for j := i + 1; j < len(users); j++ {
-			if matchedIndices[j] {
-				continue
-			}
+			if matchedIndices[j] { continue }
 
 			userA := &users[i]
 			userB := &users[j]
 
-			if userA.TelegramID == userB.TelegramID {
-				continue
+			if userA.TelegramID == userB.TelegramID { continue }
+
+			// 1. Cek Lokasi (Logic lama)
+			if !s.checkLocationMatch(userA, userB) { continue }
+
+			// 2. Logic Match (Strict vs Mixed)
+			// --- AWAL PERUBAHAN: LOGIKA VIP FILTER ---
+			
+			// Default match adalah TRUE (untuk mode Fun/Mixed)
+			isMatch := true
+			
+			// Tapi, jika Mode Default Strict (Dating) ATAU Usernya VIP,
+			// Kita paksa cek Gender Preference.
+			
+			shouldCheckStrictA := isStrictDefault || userA.IsVIP
+			shouldCheckStrictB := isStrictDefault || userB.IsVIP
+
+			// Logic VIP: 
+			// Jika A VIP -> A harus cocok dengan B (A's pref matches B's gender)
+			// Jika B VIP -> B harus cocok dengan A
+			
+			matchAtoB := true
+			if shouldCheckStrictA {
+				matchAtoB = (userA.Preference == "both" || userA.Preference == userB.Gender)
 			}
 
-			isMatch := s.checkLocationMatch(userA, userB)
-			if !isMatch {
-				continue
+			matchBtoA := true
+			if shouldCheckStrictB {
+				matchBtoA = (userB.Preference == "both" || userB.Preference == userA.Gender)
 			}
 
-			if isStrict {
-				isMatch = s.checkStrictMatch(userA, userB)
-			}
+			isMatch = matchAtoB && matchBtoA
+			// --- AKHIR PERUBAHAN ---
 
 			if isMatch {
 				s.executeMatch(userA, userB)
@@ -104,13 +116,6 @@ func (s *MatchmakerService) checkLocationMatch(a, b *core.User) bool {
 	// Contoh: "🇮🇩 Indonesia" == "🇮🇩 Indonesia" -> True
 	// Contoh: "🇮🇩 Indonesia" == "🇲🇾 Malaysia" -> False
 	return locA == locB
-}
-
-func (s *MatchmakerService) checkStrictMatch(a, b *core.User) bool {
-	matchAtoB := (a.Preference == "both" || a.Preference == b.Gender)
-	matchBtoA := (b.Preference == "both" || b.Preference == a.Gender)
-
-	return matchAtoB && matchBtoA
 }
 
 func (s *MatchmakerService) executeMatch(a, b *core.User) {
