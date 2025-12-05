@@ -98,6 +98,11 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 		return
 	}
 
+	if msg.Text == "/next" {
+		h.handleNext(user)
+		return
+	}
+
 	if msg.Text == "/share" {
 		h.handleRevealRequest(user)
 		return
@@ -921,4 +926,93 @@ func (h *BotHandler) executeReveal(accepter *core.User) {
 	// 4. Kirim Kontak Accepter ke Requester
 	msgToRequester := fmt.Sprintf(h.I18n.Get(requester.LanguageCode, "share_accepted_us"), accepter.FirstName, accepter.Username)
 	_, _ = h.Bot.SendMessage(requester.TelegramID, msgToRequester)
+}
+
+func (h *BotHandler) handleNext(initiator *core.User) {
+	// 1. Jika User IDLE (Gak ngapa-ngapain), arahkan ke Search
+	if initiator.Status == "idle" {
+		h.sendMoodSelector(initiator.TelegramID, initiator.LanguageCode, false, 0)
+		return
+	}
+
+	// 2. Jika User QUEUE (Sedang cari), refresh pencarian saja
+	if initiator.Status == "queue" {
+		mood := initiator.CurrentMood
+		cancelBtn := []telegram.InlineKeyboardButton{
+			{Text: "❌ Cancel / Stop", CallbackData: "cmd:stop"},
+		}
+		cancelMarkup := telegram.InlineKeyboardMarkup{
+			InlineKeyboard: [][]telegram.InlineKeyboardButton{cancelBtn},
+		}
+		
+		searchText := fmt.Sprintf("⏭ <b>Skipping...</b>\n" + h.I18n.Get(initiator.LanguageCode, "joined_queue"), mood)
+		searchText += "\n\n⏳ <i>Looking for a perfect match...</i>"
+
+		if initiator.LastMessageID != 0 {
+			_ = h.Bot.EditMessageText(initiator.TelegramID, initiator.LastMessageID, searchText, cancelMarkup)
+		} else {
+			msgID, _ := h.Bot.SendMessageComplex(telegram.SendMessageRequest{
+				ChatID: initiator.TelegramID, Text: searchText, ReplyMarkup: cancelMarkup, ParseMode: "HTML",
+			})
+			if msgID != 0 {
+				initiator.LastMessageID = msgID
+				_ = h.UserRepo.Update(initiator)
+			}
+		}
+		return
+	}
+
+	// 3. Jika User CHATTING
+	partnerID := initiator.PartnerID
+	currentMood := initiator.CurrentMood
+
+	// A. Update Initiator (Pelaku Next) -> Langsung masuk QUEUE
+	initiator.LastPartnerID = partnerID
+	initiator.Status = "queue" // Langsung antri lagi
+	initiator.PartnerID = 0
+	initiator.CurrentMood = currentMood // Pastikan mood tetap sama
+	_ = h.UserRepo.Update(initiator)
+
+	// Tampilkan Animasi Searching ke Initiator
+	cancelBtn := []telegram.InlineKeyboardButton{
+		{Text: "❌ Cancel / Stop", CallbackData: "cmd:stop"},
+	}
+	cancelMarkup := telegram.InlineKeyboardMarkup{
+		InlineKeyboard: [][]telegram.InlineKeyboardButton{cancelBtn},
+	}
+	
+	searchText := fmt.Sprintf("⏭ <b>Skipping...</b>\n" + h.I18n.Get(initiator.LanguageCode, "joined_queue"), currentMood)
+	searchText += "\n\n⏳ <i>Looking for a new partner...</i>"
+
+	_, _ = h.Bot.SendMessageComplex(telegram.SendMessageRequest{
+		ChatID: initiator.TelegramID, Text: searchText, ReplyMarkup: cancelMarkup, ParseMode: "HTML",
+	})
+
+	// B. Update Partner (Korban yang di-skip) -> Jadi IDLE
+	if partnerID != 0 {
+		partner, err := h.UserRepo.GetByTelegramID(partnerID)
+		if err == nil && partner != nil && partner.PartnerID == initiator.TelegramID {
+			
+			partner.LastPartnerID = initiator.TelegramID
+			partner.Status = "idle"
+			partner.PartnerID = 0
+			_ = h.UserRepo.Update(partner)
+
+			// Beritahu partner kalau dia ditinggal
+			stopTextPartner := h.I18n.Get(partner.LanguageCode, "partner_left")
+			
+			// Tawarkan Reconnect (Upselling VIP) ke Partner
+			reconnectBtnPartner := telegram.InlineKeyboardMarkup{
+				InlineKeyboard: [][]telegram.InlineKeyboardButton{
+					{{Text: h.I18n.Get(partner.LanguageCode, "btn_reconnect"), CallbackData: "cmd:reconnect_teaser"}},
+				},
+			}
+			_, _ = h.Bot.SendMessageComplex(telegram.SendMessageRequest{
+				ChatID: partner.TelegramID, Text: stopTextPartner, ReplyMarkup: reconnectBtnPartner, ParseMode: "HTML",
+			})
+
+			// Kembalikan partner ke menu mood
+			h.sendMoodSelector(partner.TelegramID, partner.LanguageCode, false, 0)
+		}
+	}
 }

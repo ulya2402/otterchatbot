@@ -27,4 +27,5 @@ var AvailableMoods = []Option{
 	{Code: "deeptalk", Label: "mood_deeptalk", Icon: ""},
 	{Code: "fun", Label: "mood_fun", Icon: ""},
 	{Code: "debate", Label: "mood_debate", Icon: ""},
+	{Code: "mabar", Label: "mood_mabar", Icon: ""},
 }

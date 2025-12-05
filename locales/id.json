@@ -28,6 +28,7 @@
   "mood_deeptalk": "☕ Curhat",
   "mood_fun": "👻 Gabut",
   "mood_debate": "🗣 Debat",
+  "mood_mabar": "🎮 Mabar",
   "joined_queue": "🔎 <b>Mencari Partner...</b>\nTopik: <b>%s</b>\n\n<i>Mohon tunggu sebentar, sedang menyisir server...</i>",
   "partner_found": "🎉 <b>PASANGAN DITEMUKAN!</b>\n\nSapa \"Halo\" untuk memulai obrolan! 👋\n<i>Ketik /stop untuk mengakhiri sesi ini.</i>",
   "chat_ended": "⛔ <b>Sesi Berakhir</b>\nKamu memutuskan koneksi.",

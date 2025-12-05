@@ -28,6 +28,7 @@
   "mood_deeptalk": "☕ Deep Talk",
   "mood_fun": "👻 Fun / Random",
   "mood_debate": "🗣 Debate",
+  "mood_mabar": "🎮 Gaming",
   "joined_queue": "🔎 <b>Searching for Partner...</b>\nTopic: <b>%s</b>\n\n<i>Please wait, scanning servers...</i>",
   "partner_found": "🎉 <b>PARTNER FOUND!</b>\n\nSay \"Hi\" to start the chat! 👋\n<i>Type /stop to end the session.</i>",
   "chat_ended": "⛔ <b>Session Ended</b>\nYou disconnected.",

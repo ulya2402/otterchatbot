@@ -32,6 +32,7 @@ func (s *MatchmakerService) Start() {
 		s.processMood("deeptalk", false)
 		s.processMood("fun", false)
 		s.processMood("debate", false)
+		s.processMood("mabar", false)
 		
 		time.Sleep(3 * time.Second)
 	}
