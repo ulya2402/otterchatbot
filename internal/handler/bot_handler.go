@@ -52,7 +52,7 @@ func (h *BotHandler) HandleUpdate(update telegram.Update) {
 	}
 
 	// 3. Tangani Pesan Teks
-	if update.Message != nil && update.Message.Text != "" {
+	if update.Message != nil {
 		h.handleMessage(update.Message)
 	}
 }
@@ -61,7 +61,8 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 	telegramID := msg.From.ID
 	chatID := msg.Chat.ID
 
-	if strings.HasPrefix(msg.Text, "/") && h.Admin.IsAdmin(telegramID) {
+	// 1. Cek Admin (Hanya jika pesan berupa teks command)
+	if msg.Text != "" && strings.HasPrefix(msg.Text, "/") && h.Admin.IsAdmin(telegramID) {
 		cmd := strings.Split(msg.Text, " ")[0]
 		if cmd == "/stats" || cmd == "/broadcast" || cmd == "/addvip" {
 			h.Admin.HandleCommand(msg)
@@ -80,25 +81,28 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 		return
 	}
 
-	// --- FIX: BERSIHKAN PESAN LAMA SAAT KETIK COMMAND ---
-	// Jika user mengetik command navigasi (/start, /profile, dll)
-	// Kita coba hapus pesan bot terakhir agar tidak nyampah.
-	if strings.HasPrefix(msg.Text, "/") && user.LastMessageID != 0 {
+	// FIX: Bersihkan pesan lama hanya jika user mengetik command teks
+	if msg.Text != "" && strings.HasPrefix(msg.Text, "/") && user.LastMessageID != 0 {
 		_ = h.Bot.DeleteMessage(chatID, user.LastMessageID)
 	}
-	// ----------------------------------------------------
 
+	// Command Stop & Reconnect (Hanya Text)
 	if msg.Text == "/stop" {
 		h.stopChat(user)
 		return
 	}
-
 	if msg.Text == "/reconnect" {
 		h.handleReconnect(user)
 		return
 	}
 
+	// Input Lokasi (Hanya Text)
 	if user.Status == "awaiting_location" {
+		// Jika user kirim stiker pas diminta lokasi, abaikan atau minta teks lagi
+		if msg.Text == "" {
+			_, _ = h.Bot.SendMessage(chatID, "⚠️ Please send text for your location.")
+			return
+		}
 		user.Location = msg.Text
 		user.Status = "idle"
 		_ = h.UserRepo.Update(user)
@@ -109,11 +113,15 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 		return
 	}
 
+	// 2. LOGIKA RELAY (UNTUK SEMUA TIPE PESAN)
+	// Stiker/Foto akan masuk ke sini
 	if user.Status == "chatting" {
 		h.relayMessage(user, msg)
 		return
 	}
 
+	// 3. Menu Command (Hanya Text)
+	// Jika user kirim stiker di menu utama, bot akan diam atau refresh menu (default)
 	switch msg.Text {
 	case "/start":
 		h.sendMainMenu(chatID, user, false, 0)
@@ -138,6 +146,7 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 		if user.Status == "queue" {
 			_, _ = h.Bot.SendMessage(chatID, "Still searching... Type /stop to cancel.")
 		} else {
+			// Jika kirim pesan random/stiker di menu utama, refresh menu
 			h.sendMainMenu(chatID, user, false, 0)
 		}
 	}
@@ -336,9 +345,15 @@ func (h *BotHandler) relayMessage(sender *core.User, msg *telegram.Message) {
 		return
 	}
 	
-	_, err := h.Bot.SendMessage(sender.PartnerID, msg.Text)
+	// FIX: Gunakan CopyMessage agar mendukung Foto, Stiker, Voice, Video, dll
+	// Parameter: (Tujuan, Asal, ID Pesan Asal)
+	_, err := h.Bot.CopyMessage(sender.PartnerID, sender.TelegramID, msg.MessageID)
+	
 	if err != nil {
-		log.Printf("Failed to relay message: %v", err)
+		log.Printf("Failed to relay message from %d to %d: %v", sender.TelegramID, sender.PartnerID, err)
+		
+		// Opsional: Cek error spesifik (misal diblokir) sebelum stop chat
+		// Tapi untuk keamanan, jika gagal kirim, kita asumsikan putus.
 		h.stopChat(sender)
 	}
 }
@@ -557,8 +572,6 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 	user, err := h.UserRepo.GetByTelegramID(telegramID)
 	if err != nil || user == nil { return }
 
-	// Debugging: Cek data apa yang dikirim tombol
-	log.Printf("DEBUG: User clicked button: %s", data)
 
 	if data == "cmd:stop" {
 		h.stopChat(user)

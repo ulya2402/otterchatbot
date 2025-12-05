@@ -105,3 +105,9 @@ type InlineKeyboardButton struct {
 	Url          string `json:"url,omitempty"`
 	Pay          bool   `json:"pay,omitempty"`
 }
+
+type CopyMessageRequest struct {
+	ChatID     int64 `json:"chat_id"`      // Ke mana pesan dikirim
+	FromChatID int64 `json:"from_chat_id"` // Dari mana pesan berasal
+	MessageID  int   `json:"message_id"`   // ID Pesan yang mau dikopi
+}

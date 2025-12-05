@@ -225,3 +225,40 @@ func (c *Client) AnswerCallbackQuery(callbackQueryID string, text string) {
 	url := fmt.Sprintf("%s%s/answerCallbackQuery", telegramAPIBase, c.Token)
 	_, _ = c.HttpClient.Post(url, "application/json", bytes.NewBuffer(jsonData))
 }
+
+func (c *Client) CopyMessage(toChatID int64, fromChatID int64, messageID int) (int, error) {
+	req := CopyMessageRequest{
+		ChatID:     toChatID,
+		FromChatID: fromChatID,
+		MessageID:  messageID,
+	}
+
+	jsonData, err := json.Marshal(req)
+	if err != nil {
+		return 0, fmt.Errorf("marshal error: %v", err)
+	}
+
+	url := fmt.Sprintf("%s%s/copyMessage", telegramAPIBase, c.Token)
+	resp, err := c.HttpClient.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return 0, fmt.Errorf("request error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var apiResp struct {
+		Ok          bool    `json:"ok"`
+		Result      struct{ MessageID int `json:"message_id"` } `json:"result"`
+		Description string  `json:"description"`
+	}
+	
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return 0, nil
+	}
+
+	if !apiResp.Ok {
+		return 0, fmt.Errorf("api error: %s", apiResp.Description)
+	}
+
+	return apiResp.Result.MessageID, nil
+}
