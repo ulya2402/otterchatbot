@@ -53,13 +53,11 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 		return
 	}
 
-	// 1. Stop Chat Priority
 	if msg.Text == "/stop" {
 		h.stopChat(user)
 		return
 	}
 
-	// 2. Input Location Logic
 	if user.Status == "awaiting_location" {
 		user.Location = msg.Text
 		user.Status = "idle"
@@ -71,16 +69,15 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 		return
 	}
 
-	// 3. Relay Chat Logic
 	if user.Status == "chatting" {
 		h.relayMessage(user, msg)
 		return
 	}
 
-	// 4. Commands
 	switch msg.Text {
 	case "/start":
-		h.sendMainMenu(chatID, user)
+		// FIX: Parameter false, 0 (Pesan baru)
+		h.sendMainMenu(chatID, user, false, 0)
 		
 	case "/profile":
 		h.sendUserProfile(chatID, user, false)
@@ -90,17 +87,18 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 		h.sendMoodSelector(chatID, user.LanguageCode, false, 0)
 
 	case "/lang":
-		// FIX: Tambahkan parameter "profile" sebagai default origin jika diketik manual
 		h.sendLangSelector(chatID, user.LanguageCode, false, 0, "profile")
 
 	case "/help":
-		h.sendInfoMessage(chatID, user.LanguageCode, "help_text")
+		// FIX: Parameter false, 0 (Pesan baru)
+		h.sendInfoMessage(chatID, user.LanguageCode, "help_text", false, 0)
 
 	default:
 		if user.Status == "queue" {
 			_, _ = h.Bot.SendMessage(chatID, "Still searching... Type /stop to cancel.")
 		} else {
-			h.sendMainMenu(chatID, user)
+			// FIX: Parameter false, 0 (Pesan baru)
+			h.sendMainMenu(chatID, user, false, 0)
 		}
 	}
 }
@@ -113,7 +111,8 @@ func (h *BotHandler) cleanStatus(user *core.User) {
 	}
 }
 
-func (h *BotHandler) sendMainMenu(chatID int64, user *core.User) {
+// FIX: Tambahkan parameter isEdit dan msgID
+func (h *BotHandler) sendMainMenu(chatID int64, user *core.User, isEdit bool, msgID int) {
 	caption := h.I18n.Get(user.LanguageCode, "welcome_caption")
 	
 	keyboard := telegram.InlineKeyboardMarkup{
@@ -123,7 +122,6 @@ func (h *BotHandler) sendMainMenu(chatID int64, user *core.User) {
 			},
 			{
 				{Text: h.I18n.Get(user.LanguageCode, "btn_profile"), CallbackData: "cmd:profile"},
-				// FIX: Callback khusus untuk membedakan asal klik
 				{Text: h.I18n.Get(user.LanguageCode, "btn_lang"), CallbackData: "edit:lang_from_menu"},
 			},
 			{
@@ -133,39 +131,18 @@ func (h *BotHandler) sendMainMenu(chatID int64, user *core.User) {
 		},
 	}
 
-	req := telegram.SendPhotoRequest{
-		ChatID:      chatID,
-		Photo:       WelcomeImageURL, 
-		Caption:     caption,
-		ParseMode:   "HTML",
-		ReplyMarkup: keyboard,
-	}
-
-	_, err := h.Bot.SendPhoto(req)
-	
-	if err != nil {
-		log.Printf("Fallback to text menu due to error: %v", err)
-		reqText := telegram.SendMessageRequest{
-			ChatID: chatID,
-			Text: caption, 
-			ParseMode: "HTML",
-			ReplyMarkup: keyboard,
-		}
-		_, _ = h.Bot.SendMessageComplex(reqText)
-	}
+	// Gunakan fungsi helper sendOrEdit agar konsisten (Edit jika tombol back, Send jika /start)
+	h.sendOrEdit(chatID, caption, keyboard, isEdit, msgID)
 }
 
-func (h *BotHandler) sendInfoMessage(chatID int64, lang string, key string) {
+func (h *BotHandler) sendInfoMessage(chatID int64, lang string, key string, isEdit bool, msgID int) {
 	text := h.I18n.Get(lang, key)
 	keyboard := telegram.InlineKeyboardMarkup{
 		InlineKeyboard: [][]telegram.InlineKeyboardButton{
 			{{Text: "🏠 Main Menu", CallbackData: "back:menu"}},
 		},
 	}
-	// Selalu kirim pesan baru karena menggantikan pesan Foto
-	_, _ = h.Bot.SendMessageComplex(telegram.SendMessageRequest{
-		ChatID: chatID, Text: text, ReplyMarkup: keyboard, ParseMode: "HTML",
-	})
+	h.sendOrEdit(chatID, text, keyboard, isEdit, msgID)
 }
 
 func (h *BotHandler) sendUserProfile(chatID int64, user *core.User, isEdit bool) {
@@ -225,33 +202,31 @@ func (h *BotHandler) relayMessage(sender *core.User, msg *telegram.Message) {
 }
 
 func (h *BotHandler) stopChat(initiator *core.User) {
-	// 1. CEK IDLE
+	// 1. Idle -> Arahkan ke Mood Selector (Search)
 	if initiator.Status == "idle" {
-		// Ubah ke Mood Selector agar user bisa langsung cari lagi
+		// FIX: Redirect ke sendMoodSelector, bukan sendMainMenu
 		h.sendMoodSelector(initiator.TelegramID, initiator.LanguageCode, false, 0)
 		return
 	}
 
-	// 2. CEK QUEUE
+	// 2. Queue -> Cancel & Arahkan ke Mood Selector (Search)
 	if initiator.Status == "queue" {
 		initiator.Status = "idle"
 		initiator.PartnerID = 0 
 		_ = h.UserRepo.Update(initiator)
 
-		// Edit pesan "Searching..." jadi "Cancelled" dengan tombol back ke menu mood
 		if initiator.LastMessageID != 0 {
-			// Hapus tombol Cancel, ganti teks
 			_ = h.Bot.EditMessageText(initiator.TelegramID, initiator.LastMessageID, "⛔ Search cancelled.", nil)
 		} else {
 			_, _ = h.Bot.SendMessage(initiator.TelegramID, "⛔ Search cancelled.")
 		}
 		
-		// Langsung tampilkan pilihan Mood lagi
+		// FIX: Redirect ke sendMoodSelector
 		h.sendMoodSelector(initiator.TelegramID, initiator.LanguageCode, false, 0)
 		return
 	}
 
-	// 3. CEK CHATTING
+	// 3. Chatting -> End & Arahkan ke Mood Selector (Search)
 	partnerID := initiator.PartnerID
 	
 	initiator.Status = "idle"
@@ -259,7 +234,8 @@ func (h *BotHandler) stopChat(initiator *core.User) {
 	_ = h.UserRepo.Update(initiator)
 	
 	_, _ = h.Bot.SendMessage(initiator.TelegramID, h.I18n.Get(initiator.LanguageCode, "chat_ended"))
-	// Arahkan kembali ke pencarian (Mood Selector)
+	
+	// FIX: Redirect ke sendMoodSelector
 	h.sendMoodSelector(initiator.TelegramID, initiator.LanguageCode, false, 0)
 
 	if partnerID != 0 {
@@ -270,7 +246,8 @@ func (h *BotHandler) stopChat(initiator *core.User) {
 			_ = h.UserRepo.Update(partner)
 
 			_, _ = h.Bot.SendMessage(partner.TelegramID, h.I18n.Get(partner.LanguageCode, "partner_left"))
-			// Arahkan partner juga ke pencarian
+			
+			// FIX: Partner juga diredirect ke sendMoodSelector
 			h.sendMoodSelector(partner.TelegramID, partner.LanguageCode, false, 0)
 		}
 	}
@@ -284,7 +261,8 @@ func (h *BotHandler) startOnboarding(msg *telegram.Message) {
 	if newUser.LanguageCode == "" { newUser.LanguageCode = "en" }
 	_ = h.UserRepo.Create(newUser)
 	
-	h.sendMainMenu(msg.Chat.ID, newUser)
+	// Kirim pesan baru (false, 0)
+	h.sendMainMenu(msg.Chat.ID, newUser, false, 0)
 }
 
 func (h *BotHandler) sendGenderSelector(chatID int64, lang string, isEdit bool, msgID int) {
@@ -419,43 +397,38 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 		return
 	}
 
-	// --- NAVIGASI DARI MENU UTAMA (FOTO) ---
+	// --- NAVIGASI UTAMA (SEKARANG PAKE EDIT SEMUA) ---
 	if data == "cmd:search" {
-		_ = h.Bot.DeleteMessage(chatID, msgID) 
 		h.cleanStatus(user)
-		h.sendMoodSelector(chatID, user.LanguageCode, false, 0)
+		// Edit pesan menu menjadi mood selector
+		h.sendMoodSelector(chatID, user.LanguageCode, true, msgID)
 		return
 	}
 	if data == "cmd:profile" {
-		_ = h.Bot.DeleteMessage(chatID, msgID)
-		h.sendUserProfile(chatID, user, false)
+		// Edit pesan menu menjadi profile
+		h.sendUserProfile(chatID, user, true)
 		return
 	}
-	
-	// FIX: Hapus foto sebelum kirim teks Help/About
 	if data == "cmd:help" {
-		_ = h.Bot.DeleteMessage(chatID, msgID)
-		h.sendInfoMessage(chatID, user.LanguageCode, "help_text")
+		// Edit pesan menu menjadi help
+		h.sendInfoMessage(chatID, user.LanguageCode, "help_text", true, msgID)
 		return
 	}
 	if data == "cmd:about" {
-		_ = h.Bot.DeleteMessage(chatID, msgID)
-		h.sendInfoMessage(chatID, user.LanguageCode, "about_text")
+		// Edit pesan menu menjadi about
+		h.sendInfoMessage(chatID, user.LanguageCode, "about_text", true, msgID)
 		return
 	}
-
-	// FIX: Hapus foto jika pilih bahasa dari menu
 	if data == "edit:lang_from_menu" {
-		_ = h.Bot.DeleteMessage(chatID, msgID)
-		h.sendLangSelector(chatID, user.LanguageCode, false, 0, "menu")
+		// Edit pesan menu menjadi lang selector
+		h.sendLangSelector(chatID, user.LanguageCode, true, msgID, "menu")
 		return
 	}
 
-	// --- NAVIGASI TEKS ---
-	// FIX: Tombol kembali ke menu utama (Start)
+	// --- NAVIGASI KEMBALI ---
 	if data == "back:menu" {
-		_ = h.Bot.DeleteMessage(chatID, msgID)
-		h.sendMainMenu(chatID, user)
+		// Edit pesan apa pun kembali menjadi Menu Utama
+		h.sendMainMenu(chatID, user, true, msgID)
 		return
 	}
 
@@ -476,15 +449,12 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 		h.sendLocationSelector(chatID, user.LanguageCode, true, msgID)
 		return
 	}
-	// FIX: Jika pilih bahasa dari profil
 	if data == "edit:lang_from_profile" {
 		h.sendLangSelector(chatID, user.LanguageCode, true, msgID, "profile")
 		return
 	}
 
 	// --- SAVING DATA ---
-	
-	// FIX: Parsing data setlang yang sekarang punya 3 bagian
 	if strings.HasPrefix(data, "setlang:") {
 		parts := strings.Split(data, ":")
 		lang := parts[1]
@@ -494,10 +464,8 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 		user.LanguageCode = lang
 		_ = h.UserRepo.Update(user)
 
-		// Redirect cerdas berdasarkan asal
 		if origin == "menu" {
-			_ = h.Bot.DeleteMessage(chatID, msgID)
-			h.sendMainMenu(chatID, user)
+			h.sendMainMenu(chatID, user, true, msgID)
 		} else {
 			h.sendUserProfile(chatID, user, true)
 		}
