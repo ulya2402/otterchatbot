@@ -6,6 +6,7 @@
   "ask_location": "📍 <b>Lokasi</b>\nPilih Negaramu agar pencarian lebih akurat:",
   "location_saved": "✅ Lokasi diperbarui: <b>%s</b>",
   "ask_lang": "🌐 <b>Pengaturan Bahasa</b>\nPilih bahasa antarmuka:",
+  "profile_incomplete": "⚠️ <b>Profil Belum Lengkap!</b>\nMohon atur identitas (Gender) kamu dulu sebelum lanjut ya.",
   "btn_search": "🔍 Cari Partner",
   "btn_profile": "👤 Profil Saya",
   "btn_vip": "🌟 Upgrade VIP",

@@ -61,8 +61,8 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 	telegramID := msg.From.ID
 	chatID := msg.Chat.ID
 
-	// 1. Cek Admin (Hanya jika pesan berupa teks command)
-	if msg.Text != "" && strings.HasPrefix(msg.Text, "/") && h.Admin.IsAdmin(telegramID) {
+	// 1. Cek Admin
+	if strings.HasPrefix(msg.Text, "/") && h.Admin.IsAdmin(telegramID) {
 		cmd := strings.Split(msg.Text, " ")[0]
 		if cmd == "/stats" || cmd == "/broadcast" || cmd == "/addvip" {
 			h.Admin.HandleCommand(msg)
@@ -71,38 +71,39 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 	}
 	
 	user, err := h.UserRepo.GetByTelegramID(telegramID)
-	if err != nil {
-		log.Printf("Error getting user: %v", err)
-		return
-	}
+	if err != nil { return }
 
 	if user == nil {
 		h.startOnboarding(msg)
 		return
 	}
 
-	// FIX: Bersihkan pesan lama hanya jika user mengetik command teks
-	if msg.Text != "" && strings.HasPrefix(msg.Text, "/") && user.LastMessageID != 0 {
-		_ = h.Bot.DeleteMessage(chatID, user.LastMessageID)
+	// --- [BARU] SATPAM PROFIL: Cek apakah data lengkap ---
+	// Jika Gender atau Preferensi kosong, paksa user mengisi dulu.
+	// Kecuali jika user sedang input lokasi (awaiting_location)
+	if (user.Gender == "" || user.Preference == "") && user.Status != "awaiting_location" {
+		if user.LastMessageID != 0 { _ = h.Bot.DeleteMessage(chatID, user.LastMessageID) }
+		
+		// FIX: Ambil teks dari i18n JSON
+		warningMsg := h.I18n.Get(user.LanguageCode, "profile_incomplete")
+		_, _ = h.Bot.SendMessage(chatID, warningMsg)
+		
+		h.sendGenderSelector(chatID, user.LanguageCode, false, 0)
+		return
 	}
+	// -----------------------------------------------------
 
-	// Command Stop & Reconnect (Hanya Text)
 	if msg.Text == "/stop" {
 		h.stopChat(user)
 		return
 	}
+
 	if msg.Text == "/reconnect" {
 		h.handleReconnect(user)
 		return
 	}
 
-	// Input Lokasi (Hanya Text)
 	if user.Status == "awaiting_location" {
-		// Jika user kirim stiker pas diminta lokasi, abaikan atau minta teks lagi
-		if msg.Text == "" {
-			_, _ = h.Bot.SendMessage(chatID, "⚠️ Please send text for your location.")
-			return
-		}
 		user.Location = msg.Text
 		user.Status = "idle"
 		_ = h.UserRepo.Update(user)
@@ -113,15 +114,16 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 		return
 	}
 
-	// 2. LOGIKA RELAY (UNTUK SEMUA TIPE PESAN)
-	// Stiker/Foto akan masuk ke sini
 	if user.Status == "chatting" {
 		h.relayMessage(user, msg)
 		return
 	}
 
-	// 3. Menu Command (Hanya Text)
-	// Jika user kirim stiker di menu utama, bot akan diam atau refresh menu (default)
+	// Bersihkan pesan lama saat command diketik
+	if strings.HasPrefix(msg.Text, "/") && user.LastMessageID != 0 {
+		_ = h.Bot.DeleteMessage(chatID, user.LastMessageID)
+	}
+
 	switch msg.Text {
 	case "/start":
 		h.sendMainMenu(chatID, user, false, 0)
@@ -146,7 +148,6 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 		if user.Status == "queue" {
 			_, _ = h.Bot.SendMessage(chatID, "Still searching... Type /stop to cancel.")
 		} else {
-			// Jika kirim pesan random/stiker di menu utama, refresh menu
 			h.sendMainMenu(chatID, user, false, 0)
 		}
 	}
@@ -310,7 +311,10 @@ func (h *BotHandler) sendUserProfile(chatID int64, user *core.User, isEdit bool)
 	if pref == "both" { pref = h.I18n.Get(user.LanguageCode, "btn_both") }
 
 	loc := user.Location
-	if loc == "" { loc = "-" }
+	if loc == "" || loc == "-" {
+		// Jika kosong, tampilkan ini
+		loc = "🌍 Global / Not Set"
+	}
 
 	statusText := "Free"
 	if user.IsVIP { statusText = "🌟 VIP" }
@@ -436,14 +440,22 @@ func (h *BotHandler) stopChat(initiator *core.User) {
 
 func (h *BotHandler) startOnboarding(msg *telegram.Message) {
 	newUser := &core.User{
-		TelegramID: msg.From.ID, Username: msg.From.Username, FirstName: msg.From.FirstName,
-		LanguageCode: msg.From.LanguageCode, Status: "onboarding",
+		TelegramID:   msg.From.ID,
+		Username:     msg.From.Username,
+		FirstName:    msg.From.FirstName,
+		LanguageCode: "en",
+		Status:       "onboarding",
 	}
-	if newUser.LanguageCode == "" { newUser.LanguageCode = "en" }
-	_ = h.UserRepo.Create(newUser)
 	
-	// Kirim pesan baru (false, 0)
-	h.sendMainMenu(msg.Chat.ID, newUser, false, 0)
+
+	if err := h.UserRepo.Create(newUser); err != nil {
+		log.Printf("Failed to create user: %v", err)
+		return
+	}
+
+	// FIX: Jangan langsung menu utama! Kirim sapaan & tanya Gender.
+	_, _ = h.Bot.SendMessage(msg.Chat.ID, h.I18n.Get(newUser.LanguageCode, "welcome"))
+	h.sendGenderSelector(msg.Chat.ID, newUser.LanguageCode, false, 0)
 }
 
 func (h *BotHandler) sendGenderSelector(chatID int64, lang string, isEdit bool, msgID int) {
@@ -572,6 +584,20 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 	user, err := h.UserRepo.GetByTelegramID(telegramID)
 	if err != nil || user == nil { return }
 
+	// --- [BARU] SATPAM PROFIL ---
+	// Cek apakah aksi ini adalah aksi "Setup" (isi data)
+	isSetupAction := strings.HasPrefix(data, "gender:") || 
+					 strings.HasPrefix(data, "pref:") || 
+					 strings.HasPrefix(data, "setlang:") ||
+					 data == "edit:lang_from_menu" // Boleh ganti bahasa pas onboarding
+
+	// Jika Gender/Pref kosong DAN user mencoba klik tombol fitur (bukan tombol setup)
+	if (user.Gender == "" || user.Preference == "") && !isSetupAction {
+		// Paksa kembali ke pemilihan Gender
+		h.sendGenderSelector(chatID, user.LanguageCode, true, msgID)
+		return
+	}
+	// ---------------------------
 
 	if data == "cmd:stop" {
 		h.stopChat(user)
@@ -595,19 +621,14 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 		return
 	}
 
-	// --- [AWAL PERUBAHAN] LOGIKA PEMBAYARAN DINAMIS ---
-	// Menangkap tombol "buy:vip_weekly" atau "buy:vip_monthly"
-	// WAJIB diletakkan sebelum logika navigasi lain
+	// Pembayaran
 	if strings.HasPrefix(data, "buy:") {
-		// Ambil ID Paket (misal: "vip_weekly") dari callback data
 		planID := strings.TrimPrefix(data, "buy:")
-		
-		// Panggil Payment Handler dengan 3 Parameter: ChatID, PlanID, Bahasa
 		h.Payment.SendVIPInvoice(chatID, planID, user.LanguageCode)
 		return
 	}
-	// --- [AKHIR PERUBAHAN] ---
 
+	// --- NAVIGASI MENU UTAMA ---
 	if data == "cmd:search" {
 		_ = h.Bot.DeleteMessage(chatID, msgID) 
 		h.cleanStatus(user)
@@ -632,6 +653,7 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 		return
 	}
 	
+	// Sub-menu Help
 	if strings.HasPrefix(data, "help:") {
 		topic := strings.Split(data, ":")[1]
 		contentKey := "help_content_" + topic
@@ -657,6 +679,7 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 		return
 	}
 
+	// --- NAVIGASI EDIT/SETTING ---
 	if data == "edit:lang_from_menu" {
 		_ = h.Bot.DeleteMessage(chatID, msgID)
 		h.sendLangSelector(chatID, user.LanguageCode, false, 0, "menu")
@@ -690,6 +713,7 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 		return
 	}
 
+	// --- SAVING DATA ---
 	if strings.HasPrefix(data, "setlang:") {
 		parts := strings.Split(data, ":")
 		lang := parts[1]
@@ -721,13 +745,33 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 		gender := strings.Split(data, ":")[1]
 		user.Gender = gender
 		_ = h.UserRepo.Update(user)
-		h.sendUserProfile(chatID, user, true) 
+		
+		// Jika ini bagian dari onboarding (status masih onboarding/kosong)
+		if user.Status == "onboarding" || user.Preference == "" {
+			h.sendPreferenceSelector(chatID, user.LanguageCode, true, msgID)
+		} else {
+			h.sendUserProfile(chatID, user, true)
+		}
 
 	} else if strings.HasPrefix(data, "pref:") {
 		pref := strings.Split(data, ":")[1]
 		user.Preference = pref
 		_ = h.UserRepo.Update(user)
-		h.sendUserProfile(chatID, user, true)
+		
+		// Jika selesai onboarding, arahkan ke Menu Utama
+		if user.Status == "onboarding" {
+			// Update status biar ga dianggap onboarding lagi
+			user.Status = "idle"
+			_ = h.UserRepo.Update(user)
+			
+			_, _ = h.Bot.SendMessage(chatID, h.I18n.Get(user.LanguageCode, "setup_complete"))
+			
+			// Hapus selector lama, kirim menu utama baru
+			_ = h.Bot.DeleteMessage(chatID, msgID)
+			h.sendMainMenu(chatID, user, false, 0)
+		} else {
+			h.sendUserProfile(chatID, user, true)
+		}
 
 	} else if strings.HasPrefix(data, "mood:") {
 		mood := strings.Split(data, ":")[1]
