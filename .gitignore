@@ -1,0 +1,14 @@
+# Abaikan file konfigurasi rahasia
+.env
+
+# Abaikan folder build/binary
+main
+main.exe
+
+# Abaikan folder sistem (jika pakai Mac/Windows)
+.DS_Store
+Thumbs.db
+
+# Abaikan folder IDE (VSCode/Jetbrains)
+.vscode/
+.idea/
