@@ -131,6 +131,40 @@ func (c *Client) SendPhoto(req SendPhotoRequest) (int, error) {
 	return apiResp.Result.MessageID, nil
 }
 
+func (c *Client) SendInvoice(req SendInvoiceRequest) error {
+	jsonData, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("failed to marshal invoice: %v", err)
+	}
+
+	url := fmt.Sprintf("%s%s/sendInvoice", telegramAPIBase, c.Token)
+	resp, err := c.HttpClient.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to send invoice: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("telegram api error: %s", string(body))
+	}
+	return nil
+}
+
+// [BARU] Fungsi Jawab PreCheckout (Wajib untuk Payments)
+func (c *Client) AnswerPreCheckoutQuery(queryID string, ok bool, errorMessage string) error {
+	req := AnswerPreCheckoutQueryRequest{
+		PreCheckoutQueryID: queryID,
+		Ok:                 ok,
+		ErrorMessage:       errorMessage,
+	}
+	jsonData, _ := json.Marshal(req)
+
+	url := fmt.Sprintf("%s%s/answerPreCheckoutQuery", telegramAPIBase, c.Token)
+	_, err := c.HttpClient.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	return err
+}
+
 func (c *Client) EditMessageText(chatID int64, messageID int, text string, replyMarkup interface{}) error {
 	req := struct {
 		ChatID      int64       `json:"chat_id"`

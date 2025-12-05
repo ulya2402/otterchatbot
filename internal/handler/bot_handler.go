@@ -19,6 +19,7 @@ type BotHandler struct {
 	UserRepo *repository.UserRepository
 	I18n     *i18n.I18nService
 	Admin    *AdminHandler
+	Payment  *PaymentHandler
 }
 
 func NewBotHandler(bot *telegram.Client, userRepo *repository.UserRepository, i18n *i18n.I18nService, cfg *config.Config) *BotHandler {
@@ -26,17 +27,31 @@ func NewBotHandler(bot *telegram.Client, userRepo *repository.UserRepository, i1
 		Bot:      bot,
 		UserRepo: userRepo,
 		I18n:     i18n,
-		// Inisialisasi Admin Handler di sini
 		Admin:    NewAdminHandler(bot, userRepo, cfg),
+		// FIX: Update parameter PaymentHandler agar sesuai dengan perubahan sebelumnya
+		Payment:  NewPaymentHandler(bot, userRepo, cfg, i18n),
 	}
 }
 
 func (h *BotHandler) HandleUpdate(update telegram.Update) {
+	// 1. Tangani Pembayaran (Prioritas)
+	if update.PreCheckoutQuery != nil {
+		h.Payment.HandlePreCheckout(update.PreCheckoutQuery)
+		return
+	}
+
+	if update.Message != nil && update.Message.SuccessfulPayment != nil {
+		h.Payment.HandleSuccessfulPayment(update.Message)
+		return
+	}
+
+	// 2. Tangani Callback
 	if update.CallbackQuery != nil {
 		h.handleCallback(update.CallbackQuery)
 		return
 	}
 
+	// 3. Tangani Pesan Teks
 	if update.Message != nil && update.Message.Text != "" {
 		h.handleMessage(update.Message)
 	}
@@ -50,7 +65,7 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 		cmd := strings.Split(msg.Text, " ")[0]
 		if cmd == "/stats" || cmd == "/broadcast" || cmd == "/addvip" {
 			h.Admin.HandleCommand(msg)
-			return // Stop proses, jangan lanjut ke logic user biasa
+			return 
 		}
 	}
 	
@@ -64,6 +79,14 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 		h.startOnboarding(msg)
 		return
 	}
+
+	// --- FIX: BERSIHKAN PESAN LAMA SAAT KETIK COMMAND ---
+	// Jika user mengetik command navigasi (/start, /profile, dll)
+	// Kita coba hapus pesan bot terakhir agar tidak nyampah.
+	if strings.HasPrefix(msg.Text, "/") && user.LastMessageID != 0 {
+		_ = h.Bot.DeleteMessage(chatID, user.LastMessageID)
+	}
+	// ----------------------------------------------------
 
 	if msg.Text == "/stop" {
 		h.stopChat(user)
@@ -93,14 +116,13 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 
 	switch msg.Text {
 	case "/start":
-		// FIX: Parameter false, 0 (Pesan baru)
 		h.sendMainMenu(chatID, user, false, 0)
-
-	case "/vip":
-		h.sendVipInfo(chatID, user.LanguageCode, false, 0)
 		
 	case "/profile":
 		h.sendUserProfile(chatID, user, false)
+
+	case "/vip":
+		h.sendVipInfo(chatID, user.LanguageCode, false, 0)
 
 	case "/search":
 		h.cleanStatus(user)
@@ -110,14 +132,12 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 		h.sendLangSelector(chatID, user.LanguageCode, false, 0, "profile")
 
 	case "/help":
-        // FIX: Arahkan ke Menu Help Interaktif
 		h.sendHelpMenu(chatID, user.LanguageCode, false, 0)
 
 	default:
 		if user.Status == "queue" {
 			_, _ = h.Bot.SendMessage(chatID, "Still searching... Type /stop to cancel.")
 		} else {
-			// FIX: Parameter false, 0 (Pesan baru)
 			h.sendMainMenu(chatID, user, false, 0)
 		}
 	}
@@ -175,20 +195,33 @@ func (h *BotHandler) handleReconnect(user *core.User) {
 func (h *BotHandler) sendVipInfo(chatID int64, lang string, isEdit bool, msgID int) {
 	text := h.I18n.Get(lang, "vip_info")
 	
-	// Tombol Link ke Admin
-	adminURL := h.I18n.Get(lang, "vip_contact_url")
+	var rows [][]telegram.InlineKeyboardButton
 	
-	keyboard := telegram.InlineKeyboardMarkup{
-		InlineKeyboard: [][]telegram.InlineKeyboardButton{
-			{
-				// Tombol URL (tidak mengirim callback ke bot, tapi membuka link)
-				{Text: h.I18n.Get(lang, "btn_contact_admin"), Url: adminURL},
-			},
-			{
-				{Text: "🏠 Main Menu", CallbackData: "back:menu"},
-			},
-		},
+	// LOOPING DATA DARI CONFIG JSON
+	// Ini membuat tombol otomatis muncul sesuai jumlah paket di pricing.json
+	// Tanpa perlu ubah kode Go jika nambah paket baru
+	for _, plan := range h.Payment.Config.VIPPlans {
+		// Format label: "⭐️ 7 Hari (50 Stars)"
+		// Mengambil format dari locales (btn_buy_format)
+		labelFormat := h.I18n.Get(lang, "btn_buy_format")
+		label := fmt.Sprintf(labelFormat, plan.Days, plan.Price)
+		
+		btn := telegram.InlineKeyboardButton{
+			Text:         label,
+			CallbackData: "buy:" + plan.ID, // Contoh: buy:vip_weekly
+		}
+		rows = append(rows, []telegram.InlineKeyboardButton{btn})
 	}
+
+	// Tombol manual & back
+	rows = append(rows, []telegram.InlineKeyboardButton{
+		{Text: h.I18n.Get(lang, "btn_contact_admin"), Url: h.I18n.Get(lang, "vip_contact_url")},
+	})
+	rows = append(rows, []telegram.InlineKeyboardButton{
+		{Text: "🏠 Main Menu", CallbackData: "back:menu"},
+	})
+
+	keyboard := telegram.InlineKeyboardMarkup{InlineKeyboard: rows}
 	h.sendOrEdit(chatID, text, keyboard, isEdit, msgID)
 }
 
@@ -323,6 +356,7 @@ func (h *BotHandler) stopChat(initiator *core.User) {
 		initiator.PartnerID = 0 
 		_ = h.UserRepo.Update(initiator)
 
+		// Ubah pesan "Searching..." jadi "Cancelled"
 		if initiator.LastMessageID != 0 {
 			_ = h.Bot.EditMessageText(initiator.TelegramID, initiator.LastMessageID, "⛔ Search cancelled.", nil)
 		} else {
@@ -335,6 +369,8 @@ func (h *BotHandler) stopChat(initiator *core.User) {
 
 	// 3. CHATTING: Jika sedang chat, putuskan hubungan
 	partnerID := initiator.PartnerID
+	
+	// --- AWAL PERUBAHAN: LOGIKA SIMPAN MANTAN & TOMBOL RECONNECT ---
 	
 	// Simpan Mantan & Reset Initiator
 	initiator.LastPartnerID = partnerID 
@@ -349,6 +385,7 @@ func (h *BotHandler) stopChat(initiator *core.User) {
 			{{Text: h.I18n.Get(initiator.LanguageCode, "btn_reconnect"), CallbackData: "cmd:reconnect_teaser"}},
 		},
 	}
+	// Gunakan SendMessageComplex karena ada tombolnya
 	_, _ = h.Bot.SendMessageComplex(telegram.SendMessageRequest{
 		ChatID: initiator.TelegramID, Text: stopText, ReplyMarkup: reconnectBtn, ParseMode: "HTML",
 	})
@@ -365,7 +402,7 @@ func (h *BotHandler) stopChat(initiator *core.User) {
 			partner.PartnerID = 0
 			_ = h.UserRepo.Update(partner)
 
-			// Kirim pesan Partner Left + Tombol Reconnect (Teaser)
+			// Kirim pesan Partner Left + Tombol Reconnect (Teaser) ke Partner juga
 			stopTextPartner := h.I18n.Get(partner.LanguageCode, "partner_left")
 			reconnectBtnPartner := telegram.InlineKeyboardMarkup{
 				InlineKeyboard: [][]telegram.InlineKeyboardButton{
@@ -379,6 +416,7 @@ func (h *BotHandler) stopChat(initiator *core.User) {
 			h.sendMoodSelector(partner.TelegramID, partner.LanguageCode, false, 0)
 		}
 	}
+	// --- AKHIR PERUBAHAN ---
 }
 
 func (h *BotHandler) startOnboarding(msg *telegram.Message) {
@@ -519,19 +557,18 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 	user, err := h.UserRepo.GetByTelegramID(telegramID)
 	if err != nil || user == nil { return }
 
-	// --- STOP CHAT ---
+	// Debugging: Cek data apa yang dikirim tombol
+	log.Printf("DEBUG: User clicked button: %s", data)
+
 	if data == "cmd:stop" {
 		h.stopChat(user)
 		return
 	}
 
-	// --- LOGIKA RECONNECT TEASER (UPSELLING) ---
 	if data == "cmd:reconnect_teaser" {
 		if user.IsVIP {
-			// Jika user VIP, jalankan reconnect beneran
 			h.handleReconnect(user)
 		} else {
-			// Jika user GRATIS, tawarkan VIP
 			pitchText := h.I18n.Get(user.LanguageCode, "vip_pitch")
 			keyboard := telegram.InlineKeyboardMarkup{
 				InlineKeyboard: [][]telegram.InlineKeyboardButton{
@@ -545,8 +582,19 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 		return
 	}
 
-	// --- MENU UTAMA & NAVIGASI ---
-	
+	// --- [AWAL PERUBAHAN] LOGIKA PEMBAYARAN DINAMIS ---
+	// Menangkap tombol "buy:vip_weekly" atau "buy:vip_monthly"
+	// WAJIB diletakkan sebelum logika navigasi lain
+	if strings.HasPrefix(data, "buy:") {
+		// Ambil ID Paket (misal: "vip_weekly") dari callback data
+		planID := strings.TrimPrefix(data, "buy:")
+		
+		// Panggil Payment Handler dengan 3 Parameter: ChatID, PlanID, Bahasa
+		h.Payment.SendVIPInvoice(chatID, planID, user.LanguageCode)
+		return
+	}
+	// --- [AKHIR PERUBAHAN] ---
+
 	if data == "cmd:search" {
 		_ = h.Bot.DeleteMessage(chatID, msgID) 
 		h.cleanStatus(user)
@@ -559,21 +607,18 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 		return
 	}
 	
-	// -- INFO VIP --
 	if data == "cmd:vip" {
 		_ = h.Bot.DeleteMessage(chatID, msgID)
 		h.sendVipInfo(chatID, user.LanguageCode, false, 0)
 		return
 	}
 
-	// -- MENU HELP (INTERAKTIF) --
 	if data == "cmd:help" {
 		_ = h.Bot.DeleteMessage(chatID, msgID)
 		h.sendHelpMenu(chatID, user.LanguageCode, false, 0)
 		return
 	}
 	
-	// Sub-menu Help (Basic, Cmd, Rules)
 	if strings.HasPrefix(data, "help:") {
 		topic := strings.Split(data, ":")[1]
 		contentKey := "help_content_" + topic
@@ -599,8 +644,6 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 		return
 	}
 
-	// --- NAVIGASI UMUM ---
-	
 	if data == "edit:lang_from_menu" {
 		_ = h.Bot.DeleteMessage(chatID, msgID)
 		h.sendLangSelector(chatID, user.LanguageCode, false, 0, "menu")
@@ -617,8 +660,6 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 		h.sendUserProfile(chatID, user, true)
 		return
 	}
-
-	// --- EDIT SETTINGS (PROFILE) ---
 	if data == "edit:gender" {
 		h.sendGenderSelector(chatID, user.LanguageCode, true, msgID)
 		return
@@ -636,7 +677,6 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 		return
 	}
 
-	// --- SAVING DATA ---
 	if strings.HasPrefix(data, "setlang:") {
 		parts := strings.Split(data, ":")
 		lang := parts[1]
