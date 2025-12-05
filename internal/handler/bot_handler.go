@@ -98,6 +98,11 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 		return
 	}
 
+	if msg.Text == "/share" {
+		h.handleRevealRequest(user)
+		return
+	}
+
 	if msg.Text == "/reconnect" {
 		h.handleReconnect(user)
 		return
@@ -348,16 +353,60 @@ func (h *BotHandler) relayMessage(sender *core.User, msg *telegram.Message) {
 		_ = h.UserRepo.Update(sender)
 		return
 	}
+
+	// --- [BARU] CHAT ACTION & SPOILER LOGIC ---
 	
-	// FIX: Gunakan CopyMessage agar mendukung Foto, Stiker, Voice, Video, dll
-	// Parameter: (Tujuan, Asal, ID Pesan Asal)
-	_, err := h.Bot.CopyMessage(sender.PartnerID, sender.TelegramID, msg.MessageID)
+	var err error
+
+	// 1. Jika FOTO
+	if len(msg.Photo) > 0 {
+		// Kirim action "uploading photo..."
+		_ = h.Bot.SendChatAction(sender.PartnerID, "upload_photo")
+		
+		// Ambil foto kualitas tertinggi (terakhir di array)
+		bestPhoto := msg.Photo[len(msg.Photo)-1]
+		
+		// Kirim Foto dengan SPOILER (Blur)
+		req := telegram.SendPhotoRequest{
+			ChatID:     sender.PartnerID,
+			Photo:      bestPhoto.FileID, // Gunakan FileID dari Telegram
+			Caption:    msg.Caption, // Caption jika ada
+			HasSpoiler: true,     // AKTIFKAN BLUR
+		}
+		_, err = h.Bot.SendPhoto(req)
+
+	// 2. Jika VIDEO
+	} else if msg.Video != nil {
+		_ = h.Bot.SendChatAction(sender.PartnerID, "upload_video")
+		
+		req := telegram.SendVideoRequest{
+			ChatID:     sender.PartnerID,
+			Video:      msg.Video.FileID,
+			Caption:    msg.Caption,
+			HasSpoiler: true, // AKTIFKAN BLUR
+		}
+		_, err = h.Bot.SendVideo(req)
+
+	// 3. Jika VOICE NOTE
+	} else if msg.Voice != nil {
+		_ = h.Bot.SendChatAction(sender.PartnerID, "record_voice")
+		// Voice tidak bisa di-spoiler, jadi copy biasa
+		_, err = h.Bot.CopyMessage(sender.PartnerID, sender.TelegramID, msg.MessageID)
+
+	// 4. Jika STIKER
+	} else if msg.Sticker != nil {
+		// Stiker tidak ada chat action khusus, kirim langsung
+		_, err = h.Bot.CopyMessage(sender.PartnerID, sender.TelegramID, msg.MessageID)
+
+	// 5. Jika TEKS BIASA
+	} else {
+		_ = h.Bot.SendChatAction(sender.PartnerID, "typing")
+		_, err = h.Bot.CopyMessage(sender.PartnerID, sender.TelegramID, msg.MessageID)
+	}
 	
+	// Error Handling
 	if err != nil {
 		log.Printf("Failed to relay message from %d to %d: %v", sender.TelegramID, sender.PartnerID, err)
-		
-		// Opsional: Cek error spesifik (misal diblokir) sebelum stop chat
-		// Tapi untuk keamanan, jika gagal kirim, kita asumsikan putus.
 		h.stopChat(sender)
 	}
 }
@@ -599,6 +648,18 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 	}
 	// ---------------------------
 
+	if data == "reveal:agree" {
+		// Hapus pesan permintaan agar tidak bisa diklik 2x
+		_ = h.Bot.DeleteMessage(chatID, msgID)
+		h.executeReveal(user)
+		return
+	}
+	if data == "reveal:reject" {
+		_ = h.Bot.DeleteMessage(chatID, msgID)
+		_, _ = h.Bot.SendMessage(chatID, h.I18n.Get(user.LanguageCode, "share_rejected"))
+		return
+	}
+
 	if data == "cmd:stop" {
 		h.stopChat(user)
 		return
@@ -796,4 +857,68 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 
 func (h *BotHandler) sendRequest(req telegram.SendMessageRequest) {
 	_, _ = h.Bot.SendMessageComplex(req)
+}
+
+// [BARU] Fungsi Meminta Izin Reveal
+func (h *BotHandler) handleRevealRequest(sender *core.User) {
+	// 1. Cek apakah sedang chatting
+	if sender.Status != "chatting" || sender.PartnerID == 0 {
+		_, _ = h.Bot.SendMessage(sender.TelegramID, "⚠️ You are not in a chat.")
+		return
+	}
+
+	// 2. Cek apakah pengirim punya username
+	if sender.Username == "" {
+		_, _ = h.Bot.SendMessage(sender.TelegramID, h.I18n.Get(sender.LanguageCode, "share_error_no_username"))
+		return
+	}
+
+	// 3. Kirim Konfirmasi ke Pengirim
+	_, _ = h.Bot.SendMessage(sender.TelegramID, h.I18n.Get(sender.LanguageCode, "share_request_sent"))
+
+	// 4. Kirim Permintaan ke Partner
+	partner, err := h.UserRepo.GetByTelegramID(sender.PartnerID)
+	if err != nil || partner == nil { return }
+
+	msgText := h.I18n.Get(partner.LanguageCode, "share_request_received")
+	keyboard := telegram.InlineKeyboardMarkup{
+		InlineKeyboard: [][]telegram.InlineKeyboardButton{
+			{
+				{Text: "✅ Accept", CallbackData: "reveal:agree"},
+				{Text: "❌ Reject", CallbackData: "reveal:reject"},
+			},
+		},
+	}
+	_, _ = h.Bot.SendMessageComplex(telegram.SendMessageRequest{
+		ChatID: partner.TelegramID, Text: msgText, ReplyMarkup: keyboard, ParseMode: "HTML",
+	})
+}
+
+// [BARU] Fungsi Eksekusi Tukar Kontak
+func (h *BotHandler) executeReveal(accepter *core.User) {
+	// Accepter adalah orang yang mengklik "Accept"
+	
+	// 1. Cek validitas chat
+	if accepter.Status != "chatting" || accepter.PartnerID == 0 {
+		return
+	}
+
+	requester, err := h.UserRepo.GetByTelegramID(accepter.PartnerID)
+	if err != nil || requester == nil { return }
+
+	// 2. Cek Username (Double Check)
+	if accepter.Username == "" || requester.Username == "" {
+		errMsg := h.I18n.Get(accepter.LanguageCode, "share_error_no_username")
+		_, _ = h.Bot.SendMessage(accepter.TelegramID, errMsg)
+		_, _ = h.Bot.SendMessage(requester.TelegramID, errMsg)
+		return
+	}
+
+	// 3. Kirim Kontak Requester ke Accepter
+	msgToAccepter := fmt.Sprintf(h.I18n.Get(accepter.LanguageCode, "share_accepted_us"), requester.FirstName, requester.Username)
+	_, _ = h.Bot.SendMessage(accepter.TelegramID, msgToAccepter)
+
+	// 4. Kirim Kontak Accepter ke Requester
+	msgToRequester := fmt.Sprintf(h.I18n.Get(requester.LanguageCode, "share_accepted_us"), accepter.FirstName, accepter.Username)
+	_, _ = h.Bot.SendMessage(requester.TelegramID, msgToRequester)
 }

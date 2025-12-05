@@ -49,5 +49,11 @@
   "help_content_cmd": "🤖 <b>List of Commands</b>\n\n• <code>/start</code> : Open Main Menu / Restart Bot\n• <code>/search</code> : Quick search\n• <code>/stop</code> : End current chat\n• <code>/next</code> : Disconnect & search again\n• <code>/profile</code> : View & edit profile\n• <code>/vip</code> : VIP info\n• <code>/reconnect</code> : (VIP) Reconnect previous partner",
   "help_content_rules": "🛡️ <b>Community Rules</b>\n\nFor everyone's comfort, the following are not allowed:\n❌ Spam, advertising, or promotions.\n❌ Scamming or asking for money.\n❌ Illegal content or child pornography.\n❌ Verbal abuse/harassment.\n\n<i>Violations will result in a permanent ban.</i>",
   "about_text": "🤖 <b>About OtterChatbot</b>\n\nVersion: 2.0 (Stable)\nDeveloper: @ilyabtr\n\nThis bot connects people randomly but meaningfully. We do not store your chat content.",
-  "error_generic": "❌ A system error occurred."
+  "error_generic": "❌ A system error occurred.",
+  "btn_share_profile": "🔓 Reveal Identity",
+  "share_request_sent": "📤 <b>Request Sent!</b>\nWaiting for partner's approval to swap contacts.",
+  "share_request_received": "🔓 <b>Identity Reveal Request</b>\n\nYour partner wants to exchange Telegram contacts.\nDo you agree to reveal your identity?",
+  "share_accepted_us": "✅ <b>Partner's Contact:</b>\nName: %s\nUsername: @%s\n\n<i>Feel free to DM them!</i>",
+  "share_rejected": "❌ You rejected the reveal request.",
+  "share_error_no_username": "⚠️ <b>Failed!</b>\nYou (or your partner) have not set a <b>Username</b> in Telegram Settings."
 }

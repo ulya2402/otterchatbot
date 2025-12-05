@@ -50,6 +50,17 @@ func (c *Client) GetUpdates(offset int) ([]Update, error) {
 	return apiResp.Result, nil
 }
 
+func (c *Client) SendChatAction(chatID int64, action string) error {
+	req := SendChatActionRequest{
+		ChatID: chatID,
+		Action: action,
+	}
+	jsonData, _ := json.Marshal(req)
+	url := fmt.Sprintf("%s%s/sendChatAction", telegramAPIBase, c.Token)
+	_, err := c.HttpClient.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	return err
+}
+
 func (c *Client) SendMessage(chatID int64, text string) (int, error) {
 	req := SendMessageRequest{
 		ChatID:    chatID,
@@ -128,6 +139,37 @@ func (c *Client) SendPhoto(req SendPhotoRequest) (int, error) {
 		return 0, fmt.Errorf("api error: %s", apiResp.Description)
 	}
 
+	return apiResp.Result.MessageID, nil
+}
+
+func (c *Client) SendVideo(req SendVideoRequest) (int, error) {
+	if req.ParseMode == "" {
+		req.ParseMode = "HTML"
+	}
+	jsonData, err := json.Marshal(req)
+	if err != nil {
+		return 0, fmt.Errorf("marshal error: %v", err)
+	}
+
+	url := fmt.Sprintf("%s%s/sendVideo", telegramAPIBase, c.Token)
+	resp, err := c.HttpClient.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return 0, fmt.Errorf("request error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var apiResp struct {
+		Ok          bool    `json:"ok"`
+		Result      Message `json:"result"`
+		Description string  `json:"description"`
+	}
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return 0, nil
+	}
+	if !apiResp.Ok {
+		return 0, fmt.Errorf("api error: %s", apiResp.Description)
+	}
 	return apiResp.Result.MessageID, nil
 }
 

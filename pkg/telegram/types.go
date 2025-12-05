@@ -12,7 +12,33 @@ type Message struct {
 	From      *User  `json:"from"`
 	Chat      *Chat  `json:"chat"`
 	Text      string `json:"text"`
+	Caption            string             `json:"caption"`
 	SuccessfulPayment  *SuccessfulPayment `json:"successful_payment"`
+	Photo              []PhotoSize        `json:"photo"`
+	Video              *Video             `json:"video"`
+	Voice              *Voice             `json:"voice"`
+	Sticker            *Sticker           `json:"sticker"`
+}
+
+type PhotoSize struct {
+	FileID   string `json:"file_id"`
+	FileSize int    `json:"file_size"`
+}
+
+// [BARU] Struct Video
+type Video struct {
+	FileID   string `json:"file_id"`
+	MimeType string `json:"mime_type"`
+}
+
+// [BARU] Struct Voice
+type Voice struct {
+	FileID string `json:"file_id"`
+}
+
+// [BARU] Struct Sticker
+type Sticker struct {
+	FileID string `json:"file_id"`
 }
 
 type CallbackQuery struct {
@@ -68,7 +94,22 @@ type SendPhotoRequest struct {
 	Photo       string      `json:"photo"`
 	Caption     string      `json:"caption,omitempty"`
 	ParseMode   string      `json:"parse_mode,omitempty"`
+	HasSpoiler  bool        `json:"has_spoiler,omitempty"` // Efek Blur
 	ReplyMarkup interface{} `json:"reply_markup,omitempty"`
+}
+
+type SendVideoRequest struct {
+	ChatID      int64       `json:"chat_id"`
+	Video       string      `json:"video"`
+	Caption     string      `json:"caption,omitempty"`
+	ParseMode   string      `json:"parse_mode,omitempty"`
+	HasSpoiler  bool        `json:"has_spoiler,omitempty"` // Efek Blur
+	ReplyMarkup interface{} `json:"reply_markup,omitempty"`
+}
+
+type SendChatActionRequest struct {
+	ChatID int64  `json:"chat_id"`
+	Action string `json:"action"` // typing, upload_photo, etc
 }
 
 type SendInvoiceRequest struct {

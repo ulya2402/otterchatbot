@@ -49,5 +49,11 @@
   "help_content_cmd": "🤖 <b>Daftar Perintah (Commands)</b>\n\n• <code>/start</code> : Membuka Menu Utama / Restart Bot\n• <code>/search</code> : Pintasan cepat mencari teman\n• <code>/stop</code> : Memutus obrolan saat ini\n• <code>/next</code> : Putus & langsung cari yang baru\n• <code>/profile</code> : Melihat & edit profil\n• <code>/vip</code> : Info pembelian VIP\n• <code>/reconnect</code> : (VIP) Menghubungkan partner terakhir",
   "help_content_rules": "🛡️ <b>Aturan Komunitas</b>\n\nDemi kenyamanan bersama, dilarang:\n❌ Spam, Iklan, atau Promosi.\n❌ Penipuan atau meminta uang.\n❌ Konten ilegal atau pornografi anak.\n❌ Kekerasan verbal/pelecehan.\n\n<i>Pelanggaran akan mengakibatkan Ban Permanen.</i>",
   "about_text": "🤖 <b>Tentang OtterChatbot</b>\n\nVersi: 2.0 (Stable)\nDeveloper: @ilyabtr\n\nBot ini dibuat untuk menghubungkan orang-orang secara acak namun terarah. Kami tidak menyimpan isi chat Anda.",
-  "error_generic": "❌ Terjadi kesalahan sistem."
+  "error_generic": "❌ Terjadi kesalahan sistem.",
+  "btn_share_profile": "🔓 Buka Identitas",
+  "share_request_sent": "📤 <b>Permintaan Terkirim!</b>\nMenunggu persetujuan partner untuk saling buka identitas.",
+  "share_request_received": "🔓 <b>Permintaan Buka Identitas</b>\n\nPartner kamu mengajak bertukar kontak Telegram asli.\nApakah kamu setuju saling membuka identitas?",
+  "share_accepted_us": "✅ <b>Kontak Partner:</b>\nNama: %s\nUsername: @%s\n\n<i>Silakan lanjut di DM pribadi!</i>",
+  "share_rejected": "❌ Kamu menolak permintaan buka identitas.",
+  "share_error_no_username": "⚠️ <b>Gagal!</b>\nKamu (atau partner) belum mengatur <b>Username</b> di setelan Telegram. Harap atur dulu di Settings Telegram."
 }
