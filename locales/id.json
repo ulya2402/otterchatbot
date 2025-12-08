@@ -1,5 +1,5 @@
 {
-  "welcome_caption": "👋 <b>Selamat Datang di OtterChatbot!</b>\n\nBot <i>Anonim Chat</i> yang mempertemukanmu dengan orang baru berdasarkan topik obrolan.\n\n✨ <b>Kenapa OtterChatbot?</b>\n• 🔒 <b>Privasi 100%:</b> Identitasmu rahasia.\n• 🌍 <b>Global:</b> Temukan teman dari berbagai negara.\n• 🎭 <b>Topik Seru:</b> Dari cari jodoh sampai debat.\n\n<i>Siap memulai? Klik tombol di bawah:</i>",
+  "welcome_caption": "👋 <b>Selamat Datang di OtterChatbot!</b>\n\nBot <i>Anonim Chat</i> yang mempertemukanmu dengan orang baru berdasarkan topik obrolan.\n\n✨ <b>Kenapa OtterChatbot?</b>\n• 🔒 <b>Privasi 100%:</b> Identitasmu rahasia.\n• 🌍 <b>Global:</b> Temukan teman dari berbagai negara.\n• 🎭 <b>Topik Seru:</b> Dari cari jodoh sampai temen mabar.\n• 🎮 <b>Nggak kehabisan topik:</b> karena ada game truth or dare yang bisa kalian gunakan dengan command /game.\n\n<i>Siap memulai? Klik tombol di bawah:</i>",
   "welcome_back": "👋 Halo lagi, <b>%s</b>! Siap ngobrol lagi?",
   "ask_gender": "👤 <b>Identitas Diri</b>\nBantu kami mencarikan partner yang tepat.\nApa <b>Gender</b> kamu?",
   "ask_preference": "👀 <b>Preferensi Pencarian</b>\nKamu ingin dihubungkan dengan siapa?",

@@ -1,5 +1,5 @@
 {
-  "welcome_caption": "👋 <b>Welcome to OtterChatbot!</b>\n\nAn <i>Anonymous Chat</i> bot that connects you with new people based on topics.\n\n✨ <b>Why OtterChatbot?</b>\n• 🔒 <b>100% Private:</b> Your identity is hidden.\n• 🌍 <b>Global:</b> Meet friends from around the world.\n• 🎭 <b>Fun Topics:</b> From dating to debates.\n\n<i>Ready to begin? Click the button below:</i>",
+"welcome_caption": "👋 <b>Welcome to OtterChatbot!</b>\n\nThe <i>Anonymous Chat</i> bot that connects you with new people based on your chat topics.\n\n✨ <b>Why OtterChatbot?</b>\n• 🔒 <b>100% Privacy:</b> Your identity remains secret.\n• 🌍 <b>Global:</b> Find friends from many different countries.\n• 🎭 <b>Fun Topics:</b> From finding a partner to finding gaming buddies.\n• 🎮 <b>Never run out of topics:</b> because there’s a truth-or-dare game you can use with the /game command.\n\n<i>Ready to start? Click the button below:</i>",
   "welcome_back": "👋 Welcome back, <b>%s</b>! Ready to chat again?",
   "ask_gender": "👤 <b>Your Identity</b>\nHelp us find the right partner for you.\nWhat is your <b>Gender</b>?",
   "ask_preference": "👀 <b>Match Preference</b>\nWho would you like to be connected with?",
