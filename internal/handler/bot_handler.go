@@ -929,8 +929,44 @@ func (h *BotHandler) executeReveal(accepter *core.User) {
 }
 
 func (h *BotHandler) handleNext(initiator *core.User) {
-	// 1. Jika User IDLE (Gak ngapa-ngapain), arahkan ke Search
+	// 1. Jika User IDLE (Gak ngapa-ngapain)
 	if initiator.Status == "idle" {
+		// UPDATE: Jika user mengetik /next saat idle (biasanya karena diputus partner duluan),
+		// cek apakah dia punya mood terakhir. Jika ya, langsung antrikan lagi.
+		// Ini memperbaiki bug di mana user B stuck di menu saat user A menekan /next duluan.
+		
+		if initiator.CurrentMood != "" {
+			initiator.Status = "queue"
+			initiator.PartnerID = 0
+			_ = h.UserRepo.Update(initiator)
+
+			// Kirim pesan searching
+			cancelBtn := []telegram.InlineKeyboardButton{
+				{Text: "❌ Cancel / Stop", CallbackData: "cmd:stop"},
+			}
+			cancelMarkup := telegram.InlineKeyboardMarkup{
+				InlineKeyboard: [][]telegram.InlineKeyboardButton{cancelBtn},
+			}
+
+			// Format pesan "Searching..." sesuai bahasa user
+			searchText := fmt.Sprintf(h.I18n.Get(initiator.LanguageCode, "joined_queue"), initiator.CurrentMood)
+			
+			// Jika ada pesan terakhir (misal menu mood dari pemutusan sebelumnya), edit saja biar rapi
+			if initiator.LastMessageID != 0 {
+				_ = h.Bot.EditMessageText(initiator.TelegramID, initiator.LastMessageID, searchText, cancelMarkup)
+			} else {
+				msgID, _ := h.Bot.SendMessageComplex(telegram.SendMessageRequest{
+					ChatID: initiator.TelegramID, Text: searchText, ReplyMarkup: cancelMarkup, ParseMode: "HTML",
+				})
+				if msgID != 0 {
+					initiator.LastMessageID = msgID
+					_ = h.UserRepo.Update(initiator)
+				}
+			}
+			return
+		}
+
+		// Jika mood kosong (user baru banget atau error), baru tampilkan menu
 		h.sendMoodSelector(initiator.TelegramID, initiator.LanguageCode, false, 0)
 		return
 	}
@@ -944,9 +980,8 @@ func (h *BotHandler) handleNext(initiator *core.User) {
 		cancelMarkup := telegram.InlineKeyboardMarkup{
 			InlineKeyboard: [][]telegram.InlineKeyboardButton{cancelBtn},
 		}
-		
-		searchText := fmt.Sprintf("⏭ <b>Skipping...</b>\n" + h.I18n.Get(initiator.LanguageCode, "joined_queue"), mood)
-		searchText += "\n\n⏳ <i>Looking for a perfect match...</i>"
+
+		searchText := fmt.Sprintf("⏭ <b>Skipping...</b>\n"+h.I18n.Get(initiator.LanguageCode, "joined_queue"), mood)
 
 		if initiator.LastMessageID != 0 {
 			_ = h.Bot.EditMessageText(initiator.TelegramID, initiator.LastMessageID, searchText, cancelMarkup)
@@ -980,9 +1015,8 @@ func (h *BotHandler) handleNext(initiator *core.User) {
 	cancelMarkup := telegram.InlineKeyboardMarkup{
 		InlineKeyboard: [][]telegram.InlineKeyboardButton{cancelBtn},
 	}
-	
-	searchText := fmt.Sprintf("⏭ <b>Skipping...</b>\n" + h.I18n.Get(initiator.LanguageCode, "joined_queue"), currentMood)
-	searchText += "\n\n⏳ <i>Looking for a new partner...</i>"
+
+	searchText := fmt.Sprintf("⏭ <b>Skipping...</b>\n"+h.I18n.Get(initiator.LanguageCode, "joined_queue"), currentMood)
 
 	_, _ = h.Bot.SendMessageComplex(telegram.SendMessageRequest{
 		ChatID: initiator.TelegramID, Text: searchText, ReplyMarkup: cancelMarkup, ParseMode: "HTML",
@@ -992,7 +1026,7 @@ func (h *BotHandler) handleNext(initiator *core.User) {
 	if partnerID != 0 {
 		partner, err := h.UserRepo.GetByTelegramID(partnerID)
 		if err == nil && partner != nil && partner.PartnerID == initiator.TelegramID {
-			
+
 			partner.LastPartnerID = initiator.TelegramID
 			partner.Status = "idle"
 			partner.PartnerID = 0
@@ -1000,7 +1034,7 @@ func (h *BotHandler) handleNext(initiator *core.User) {
 
 			// Beritahu partner kalau dia ditinggal
 			stopTextPartner := h.I18n.Get(partner.LanguageCode, "partner_left")
-			
+
 			// Tawarkan Reconnect (Upselling VIP) ke Partner
 			reconnectBtnPartner := telegram.InlineKeyboardMarkup{
 				InlineKeyboard: [][]telegram.InlineKeyboardButton{
@@ -1011,7 +1045,7 @@ func (h *BotHandler) handleNext(initiator *core.User) {
 				ChatID: partner.TelegramID, Text: stopTextPartner, ReplyMarkup: reconnectBtnPartner, ParseMode: "HTML",
 			})
 
-			// Kembalikan partner ke menu mood
+			// Kembalikan partner ke menu mood (tapi jika dia ketik /next setelah ini, dia akan masuk if idle di atas)
 			h.sendMoodSelector(partner.TelegramID, partner.LanguageCode, false, 0)
 		}
 	}
