@@ -304,3 +304,28 @@ func (c *Client) CopyMessage(toChatID int64, fromChatID int64, messageID int) (i
 
 	return apiResp.Result.MessageID, nil
 }
+
+// [BARU] Kirim Dadu Acak (1-6)
+func (c *Client) SendDice(chatID int64) (int, error) {
+	return c.SendDiceCustom(chatID, "🎲")
+}
+
+// [BARU] Kirim Dadu Custom (🏀, ⚽, 🎰)
+func (c *Client) SendDiceCustom(chatID int64, emoji string) (int, error) {
+	req := struct {
+		ChatID int64  `json:"chat_id"`
+		Emoji  string `json:"emoji"`
+	}{
+		ChatID: chatID,
+		Emoji:  emoji,
+	}
+
+	jsonData, _ := json.Marshal(req)
+	url := fmt.Sprintf("%s%s/sendDice", telegramAPIBase, c.Token)
+	resp, err := c.HttpClient.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	return 0, nil
+}

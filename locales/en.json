@@ -56,5 +56,11 @@
   "share_request_received": "🔓 <b>Identity Reveal Request</b>\n\nYour partner wants to exchange Telegram contacts.\nDo you agree to reveal your identity?",
   "share_accepted_us": "✅ <b>Partner's Contact:</b>\nName: %s\nUsername: @%s\n\n<i>Feel free to DM them!</i>",
   "share_rejected": "❌ You rejected the reveal request.",
-  "share_error_no_username": "⚠️ <b>Failed!</b>\nYou (or your partner) have not set a <b>Username</b> in Telegram Settings."
+  "share_error_no_username": "⚠️ <b>Failed!</b>\nYou (or your partner) have not set a <b>Username</b> in Telegram Settings.",
+  "game_panel_title": "🎮 <b>GAME CENTER</b>",
+  "game_panel_desc": "Bored just chatting? Pick a fun challenge below to play with your partner!",
+  "btn_truth": "❓ Truth",
+  "btn_dare": "🔥 Dare",
+  "btn_close_panel": "❌ Close Panel",
+  "game_requested_by": "Requested by partner."
 }

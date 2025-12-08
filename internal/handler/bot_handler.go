@@ -6,6 +6,7 @@ import (
 	"otterchatbot/config"
 	"otterchatbot/internal/core"
 	"otterchatbot/internal/repository"
+	"otterchatbot/internal/service" 
 	"otterchatbot/pkg/i18n"
 	"otterchatbot/pkg/telegram"
 	"strings"
@@ -20,9 +21,10 @@ type BotHandler struct {
 	I18n     *i18n.I18nService
 	Admin    *AdminHandler
 	Payment  *PaymentHandler
+	Game     *service.GameService
 }
 
-func NewBotHandler(bot *telegram.Client, userRepo *repository.UserRepository, i18n *i18n.I18nService, cfg *config.Config) *BotHandler {
+func NewBotHandler(bot *telegram.Client, userRepo *repository.UserRepository, i18n *i18n.I18nService, cfg *config.Config, gameService *service.GameService) *BotHandler {
 	return &BotHandler{
 		Bot:      bot,
 		UserRepo: userRepo,
@@ -30,6 +32,7 @@ func NewBotHandler(bot *telegram.Client, userRepo *repository.UserRepository, i1
 		Admin:    NewAdminHandler(bot, userRepo, cfg),
 		// FIX: Update parameter PaymentHandler agar sesuai dengan perubahan sebelumnya
 		Payment:  NewPaymentHandler(bot, userRepo, cfg, i18n),
+		Game:     gameService,
 	}
 }
 
@@ -113,6 +116,11 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 		return
 	}
 
+	if msg.Text == "/game" {
+		h.sendGamePanel(user)
+		return
+	}
+
 	if user.Status == "awaiting_location" {
 		user.Location = msg.Text
 		user.Status = "idle"
@@ -140,6 +148,9 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 		
 	case "/profile":
 		h.sendUserProfile(chatID, user, false)
+
+	case "/game": // Pembaruan 3: Menangani perintah game
+		h.sendGamePanel(user)
 
 	case "/vip":
 		h.sendVipInfo(chatID, user.LanguageCode, false, 0)
@@ -670,6 +681,11 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 		return
 	}
 
+	if data == "cmd:delete_me" {
+		_ = h.Bot.DeleteMessage(chatID, msgID)
+		return
+	}
+
 	if data == "cmd:reconnect_teaser" {
 		if user.IsVIP {
 			h.handleReconnect(user)
@@ -691,6 +707,45 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 	if strings.HasPrefix(data, "buy:") {
 		planID := strings.TrimPrefix(data, "buy:")
 		h.Payment.SendVIPInvoice(chatID, planID, user.LanguageCode)
+		return
+	}
+
+	if strings.HasPrefix(data, "game:") {
+		action := strings.Split(data, ":")[1]
+		
+		// Hapus panel game agar tidak nyampah, kecuali jika itu panel utama
+		if action != "panel" {
+			_ = h.Bot.DeleteMessage(chatID, msgID)
+		}
+
+		if action == "panel" {
+			h.sendGamePanel(user)
+			return
+		}
+
+		// Pastikan user punya partner
+		if user.PartnerID == 0 {
+			_, _ = h.Bot.SendMessage(chatID, "⚠️ You need a partner to play!")
+			return
+		}
+
+		if action == "truth" || action == "dare" {
+			// Ambil pertanyaan dari JSON
+			question := h.Game.GetQuestion(user.LanguageCode, action)
+			
+			// Kirim Header Keren
+			header := "🤖 <b>TRUTH CHALLENGE</b>"
+			if action == "dare" { header = "🔥 <b>DARE CHALLENGE</b>" }
+			
+			footer := h.I18n.Get(user.LanguageCode, "game_requested_by")
+
+			msgText := fmt.Sprintf("%s\n\n<i>%s</i>\n\n📌 <i>%s</i>", header, question, footer)
+			
+			// Kirim ke DUA belah pihak
+			_, _ = h.Bot.SendMessage(user.TelegramID, msgText)
+			_, _ = h.Bot.SendMessage(user.PartnerID, msgText)
+		}
+		// Bagian Dadu (dice) dan Koin/Basket (coin) SUDAH DIHAPUS DARI SINI
 		return
 	}
 
@@ -1049,4 +1104,34 @@ func (h *BotHandler) handleNext(initiator *core.User) {
 			h.sendMoodSelector(partner.TelegramID, partner.LanguageCode, false, 0)
 		}
 	}
+}
+
+func (h *BotHandler) sendGamePanel(user *core.User) {
+	if user.PartnerID == 0 {
+		// Pesan error ini juga bisa ditaruh di locales kalau mau, tapi teks ini jarang muncul
+		_, _ = h.Bot.SendMessage(user.TelegramID, "⚠️ Cari partner dulu baru bisa main game!")
+		return
+	}
+
+	// [PEMBARUAN 2: Ambil Teks dari Locales]
+	title := h.I18n.Get(user.LanguageCode, "game_panel_title")
+	desc := h.I18n.Get(user.LanguageCode, "game_panel_desc")
+	
+	text := fmt.Sprintf("%s\n\n%s", title, desc)
+
+	keyboard := telegram.InlineKeyboardMarkup{
+		InlineKeyboard: [][]telegram.InlineKeyboardButton{
+			{
+				{Text: h.I18n.Get(user.LanguageCode, "btn_truth"), CallbackData: "game:truth"},
+				{Text: h.I18n.Get(user.LanguageCode, "btn_dare"), CallbackData: "game:dare"},
+			},
+			{
+				{Text: h.I18n.Get(user.LanguageCode, "btn_close_panel"), CallbackData: "cmd:delete_me"},
+			},
+		},
+	}
+	
+	_, _ = h.Bot.SendMessageComplex(telegram.SendMessageRequest{
+		ChatID: user.TelegramID, Text: text, ReplyMarkup: keyboard, ParseMode: "HTML",
+	})
 }

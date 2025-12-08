@@ -27,9 +27,11 @@ func main() {
 		log.Fatalf("Fatal: Could not initialize Supabase client: %v", err)
 	}
 
+	gameService := service.NewGameService()
+
 	userRepo := repository.NewUserRepository(supabaseClient)
 	botClient := telegram.NewClient(cfg.BotToken)
-	botHandler := handler.NewBotHandler(botClient, userRepo, translator, cfg)
+	botHandler := handler.NewBotHandler(botClient, userRepo, translator, cfg, gameService)
 	matchmakerService := service.NewMatchmakerService(userRepo, botClient, translator)
 
 	// Jalankan Matchmaker di background (Goroutine)

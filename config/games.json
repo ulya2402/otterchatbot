@@ -1,0 +1,50 @@
+{
+    "id": {
+      "truth": [
+        "Siapa orang terakhir yang kamu stalk di sosmed?",
+        "Apa kebohongan terbesar yang pernah kamu bilang ke orang tua?",
+        "Siapa mantan terindah kamu dan kenapa?",
+        "Apa hal paling memalukan yang pernah terjadi padamu di tempat umum?",
+        "Kalau besok kiamat, apa 1 hal yang mau kamu lakukan sekarang?"
+      ],
+      "dare": [
+        "Kirim voice note nyanyi 'Balonku Ada Lima' (vokal A diganti O).",
+        "Kirim foto selfie muka jelek sekarang (hapus dalam 10 detik).",
+        "Gunakan emoji 🗿 di setiap chat kamu selama 5 menit ke depan.",
+        "Chat random orang di kontakmu bilang 'Aku kangen', terus ss kesini.",
+        "Kirim screenshot wallpaper HP kamu sekarang."
+      ]
+    },
+    "en": {
+      "truth": [
+        "Who was the last person you stalked on social media?",
+        "What is the biggest lie you ever told your parents?",
+        "Who is your best ex and why?",
+        "What is the most embarrassing thing that happened to you in public?",
+        "If the world ends tomorrow, what is the one thing you'd do?"
+      ],
+      "dare": [
+        "Send a voice note singing a nursery rhyme seriously.",
+        "Send an ugly selfie right now (delete in 10s).",
+        "Use the emoji 🗿 in every sentence for the next 5 minutes.",
+        "Text a random contact 'I miss you', screenshot the reply.",
+        "Send a screenshot of your phone wallpaper."
+      ]
+    },
+    "ru": {
+      "truth": [
+        "За кем ты в последний раз шпионил в соцсетях?",
+        "Какую самую большую ложь ты говорил родителям?",
+        "Кто твой лучший бывший и почему?",
+        "Какой самый неловкий случай происходил с тобой на людях?",
+        "Если завтра конец света, что бы ты сделал прямо сейчас?"
+      ],
+      "dare": [
+        "Отправь голосовое сообщение с пением детской песенки.",
+        "Отправь уродливое селфи прямо сейчас.",
+        "Используй эмодзи 🗿 в каждом сообщении следующие 5 минут.",
+        "Напиши случайному контакту «Я скучаю», скриншот ответа.",
+        "Отправь скриншот обоев твоего телефона."
+      ]
+    }
+  }

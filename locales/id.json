@@ -56,5 +56,11 @@
   "share_request_received": "🔓 <b>Permintaan Buka Identitas</b>\n\nPartner kamu mengajak bertukar kontak Telegram asli.\nApakah kamu setuju saling membuka identitas?",
   "share_accepted_us": "✅ <b>Kontak Partner:</b>\nNama: %s\nUsername: @%s\n\n<i>Silakan lanjut di DM pribadi!</i>",
   "share_rejected": "❌ Kamu menolak permintaan buka identitas.",
-  "share_error_no_username": "⚠️ <b>Gagal!</b>\nKamu (atau partner) belum mengatur <b>Username</b> di setelan Telegram. Harap atur dulu di Settings Telegram."
+  "share_error_no_username": "⚠️ <b>Gagal!</b>\nKamu (atau partner) belum mengatur <b>Username</b> di setelan Telegram. Harap atur dulu di Settings Telegram.",
+  "game_panel_title": "🎮 <b>GAME CENTER</b>",
+  "game_panel_desc": "Bosan chat doang? Pilih tantangan seru di bawah ini buat seru-seruan bareng partner!",
+  "btn_truth": "❓ Truth",
+  "btn_dare": "🔥 Dare",
+  "btn_close_panel": "❌ Tutup Panel",
+  "game_requested_by": "Diminta oleh partner."
 }
