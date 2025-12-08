@@ -117,7 +117,12 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 	}
 
 	if msg.Text == "/game" {
-		h.sendGamePanel(user)
+		if user.Status == "chatting" && user.PartnerID != 0 {
+			h.sendGamePanel(user)
+		} else {
+			// Jika iseng ketik /game pas lagi jomblo/idle
+			_, _ = h.Bot.SendMessage(chatID, "⚠️ <b>Error:</b> You are not in a chat session.")
+		}
 		return
 	}
 
@@ -713,39 +718,43 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 	if strings.HasPrefix(data, "game:") {
 		action := strings.Split(data, ":")[1]
 		
-		// Hapus panel game agar tidak nyampah, kecuali jika itu panel utama
+		// 1. Hapus pesan panel agar tidak nyampah (kecuali user minta panel baru)
 		if action != "panel" {
 			_ = h.Bot.DeleteMessage(chatID, msgID)
 		}
 
 		if action == "panel" {
-			h.sendGamePanel(user)
+			// Cek lagi status sebelum kirim panel baru
+			if user.Status == "chatting" && user.PartnerID != 0 {
+				h.sendGamePanel(user)
+			} else {
+				_, _ = h.Bot.SendMessage(chatID, "⚠️ You need a partner to play!")
+			}
 			return
 		}
 
-		// Pastikan user punya partner
-		if user.PartnerID == 0 {
-			_, _ = h.Bot.SendMessage(chatID, "⚠️ You need a partner to play!")
+		// [PERBAIKAN FATAL: Cek Status Chatting]
+		// Jika user sudah /stop atau /next, statusnya pasti "idle" atau "queue".
+		// Jadi kita tolak aksinya biar gak error kirim ke partner 0 atau mantan.
+		if user.Status != "chatting" || user.PartnerID == 0 {
+			_, _ = h.Bot.SendMessage(chatID, "⚠️ <b>Session ended.</b> You cannot play game anymore.")
 			return
 		}
 
 		if action == "truth" || action == "dare" {
-			// Ambil pertanyaan dari JSON
 			question := h.Game.GetQuestion(user.LanguageCode, action)
 			
-			// Kirim Header Keren
 			header := "🤖 <b>TRUTH CHALLENGE</b>"
 			if action == "dare" { header = "🔥 <b>DARE CHALLENGE</b>" }
 			
 			footer := h.I18n.Get(user.LanguageCode, "game_requested_by")
 
-			msgText := fmt.Sprintf("%s\n\n<i>%s</i>\n\n📌 <i>%s</i>", header, question, footer)
+			msgText := fmt.Sprintf("%s\n\n<i>%s</i>\n <i>%s</i>", header, question, footer)
 			
 			// Kirim ke DUA belah pihak
 			_, _ = h.Bot.SendMessage(user.TelegramID, msgText)
 			_, _ = h.Bot.SendMessage(user.PartnerID, msgText)
 		}
-		// Bagian Dadu (dice) dan Koin/Basket (coin) SUDAH DIHAPUS DARI SINI
 		return
 	}
 
