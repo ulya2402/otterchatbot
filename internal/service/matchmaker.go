@@ -85,10 +85,26 @@ func (s *MatchmakerService) processMood(mood string, isStrictDefault bool) {
 			isMatch = matchAtoB && matchBtoA
 
 			if isMatch {
-				s.executeMatch(userA, userB)
+				freshA, errA := s.UserRepo.GetByTelegramID(userA.TelegramID)
+				freshB, errB := s.UserRepo.GetByTelegramID(userB.TelegramID)
+
+				// Jika error atau status user ternyata bukan "queue" lagi (misal udah stop/idle), BATALKAN.
+				if errA != nil || freshA == nil || freshA.Status != "queue" {
+					matchedIndices[i] = true // Anggap invalid biar gak diproses lagi
+					break // Ganti user A dengan kandidat lain
+				}
+				if errB != nil || freshB == nil || freshB.Status != "queue" {
+					matchedIndices[j] = true // Anggap invalid
+					continue // Cari pasangan lain buat user A
+				}
+
+				// Jika aman, eksekusi match menggunakan data TERBARU (freshA & freshB)
+				s.executeMatch(freshA, freshB)
+				// --- [PEMBARUAN SELESAI] ---
+
 				matchedIndices[i] = true
 				matchedIndices[j] = true
-				break 
+				break
 			}
 		}
 	}
