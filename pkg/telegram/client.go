@@ -329,3 +329,40 @@ func (c *Client) SendDiceCustom(chatID int64, emoji string) (int, error) {
 	defer resp.Body.Close()
 	return 0, nil
 }
+
+// [PEMBARUAN 7] Fungsi Otomatis Set Command ke Telegram
+func (c *Client) SetMyCommands(commands []BotCommand, langCode string) error {
+	req := SetMyCommandsRequest{
+		Commands: commands,
+		// Scope: all_private_chats (Command hanya muncul di chat pribadi, bukan grup)
+		Scope:        &BotCommandScope{Type: "all_private_chats"},
+		LanguageCode: langCode,
+	}
+
+	jsonData, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("marshal error: %v", err)
+	}
+
+	url := fmt.Sprintf("%s%s/setMyCommands", telegramAPIBase, c.Token)
+	resp, err := c.HttpClient.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("request error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Cek respon sukses
+	body, _ := io.ReadAll(resp.Body)
+	var apiResp struct {
+		Ok          bool   `json:"ok"`
+		Description string `json:"description"`
+	}
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return nil
+	}
+	if !apiResp.Ok {
+		return fmt.Errorf("api error: %s", apiResp.Description)
+	}
+	
+	return nil
+}

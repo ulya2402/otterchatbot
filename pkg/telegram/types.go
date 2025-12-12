@@ -152,3 +152,19 @@ type CopyMessageRequest struct {
 	FromChatID int64 `json:"from_chat_id"` // Dari mana pesan berasal
 	MessageID  int   `json:"message_id"`   // ID Pesan yang mau dikopi
 }
+
+// [PEMBARUAN 6] Struktur untuk SetMyCommands
+type BotCommand struct {
+	Command     string `json:"command"`
+	Description string `json:"description"`
+}
+
+type BotCommandScope struct {
+	Type string `json:"type"` // default, all_private_chats, dll
+}
+
+type SetMyCommandsRequest struct {
+	Commands     []BotCommand     `json:"commands"`
+	Scope        *BotCommandScope `json:"scope,omitempty"`
+	LanguageCode string           `json:"language_code,omitempty"`
+}
