@@ -34,7 +34,7 @@
   "chat_ended": "⛔ <b>Sesi Berakhir</b>\nKamu memutuskan koneksi.",
   "partner_left": "⛔ <b>Partner Pergi</b>\nTeman chatmu telah meninggalkan obrolan.",
   "partner_lost": "⚠️ <b>Koneksi Terputus</b>\nMaaf, terjadi gangguan jaringan.",
-  "vip_info": "🌟 <b>MEMBER VIP</b>\n\nNikmati fitur tanpa batas:\n\n✅ <b>Instant Reconnect:</b> Terputus? Hubungi kembali partner terakhirmu.\n✅ <b>Antrian Prioritas:</b> Dapatkan teman chat lebih cepat dari user gratisan.\n✅ <b>Filter Ketat:</b> Tetap bisa filter gender di mode Gabut/Debat.\n\n💸 <b>Pilih Paket Hemat:</b>",
+  "vip_info": "🌟 <b>MEMBER VIP</b>\n\nNikmati fitur tanpa batas:\n\n✅ <b>Instant Reconnect:</b> Terputus? Hubungi kembali partner terakhirmu.\n✅ <b>Antrian Prioritas:</b> Dapatkan teman chat lebih cepat dari user gratisan.\n✅ <b>Filter Ketat:</b> Tetap bisa filter gender di mode curhat atau mabar.\n\n💸 <b>Pilih Paket Hemat:</b>",
   "vip_pitch": "🔒 <b>FITUR TERKUNCI</b>\n\nYah... Partner kamu hilang!\nHanya <b>Member VIP</b> yang bisa menggunakan tombol <b>Reconnect</b> untuk memanggil mereka kembali.\n\n<i>Upgrade sekarang untuk membuka fitur ini!</i>",
   "btn_buy_format": "⭐️ %d Hari (%d Stars)",
   "vip_weekly_title": "Paket Mingguan",
