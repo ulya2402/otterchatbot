@@ -14,6 +14,7 @@ type User struct {
 	Status        string    `json:"status"`
 	PartnerID     int64     `json:"partner_id,omitempty"`
 	IsVIP         bool      `json:"is_vip"`
+	IsBanned      bool      `json:"is_banned"`
 	Location      string    `json:"location"`       
 	LastMessageID int       `json:"last_message_id"` 
 	VipExpiresAt  *time.Time `json:"vip_expires_at"`  // Pointer biar bisa NULL

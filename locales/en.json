@@ -62,5 +62,16 @@
   "btn_truth": "❓ Truth",
   "btn_dare": "🔥 Dare",
   "btn_close_panel": "❌ Close Panel",
-  "game_requested_by": "Requested by partner."
+  "game_requested_by": "Requested by partner.",
+  "report_error_no_chat": "⚠️ You can only report when you are in a chat.",
+  "report_menu_title": "🚨 <b>REPORT PARTNER</b>\n\nWhy do you want to report this user?",
+  "report_reason_porn": "🔞 Pornography / 18+",
+  "report_reason_harass": "🤬 Harassment / Rude",
+  "report_reason_spam": "📢 Spam / Ads",
+  "report_reason_scam": "👺 Scam / Fraud",
+  "report_btn_cancel": "❌ Cancel",
+  "report_sent": "✅ <b>Report Sent!</b>\nOur admin will review this shortly. You can type /stop to leave this chat.",
+  "report_error_generic": "⚠️ Error processing report.",
+  "ban_notification": "⛔ <b>YOU ARE BANNED</b>\n\nYou have been permanently banned from OtterChatbot due to violation of our rules.",
+  "warn_notification": "⚠️ <b>WARNING FROM ADMIN</b>\n\nWe received a report about your behavior. Please follow the rules or you will be banned."
 }

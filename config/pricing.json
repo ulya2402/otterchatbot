@@ -2,14 +2,14 @@
     {
       "id": "vip_weekly",
       "days": 7,
-      "price": 1,
+      "price": 30,
       "title_key": "vip_weekly_title",
       "desc_key": "vip_weekly_desc"
     },
     {
       "id": "vip_monthly",
       "days": 30,
-      "price": 150,
+      "price": 100,
       "title_key": "vip_monthly_title",
       "desc_key": "vip_monthly_desc"
     }

@@ -62,5 +62,16 @@
   "btn_truth": "❓ Truth",
   "btn_dare": "🔥 Dare",
   "btn_close_panel": "❌ Tutup Panel",
-  "game_requested_by": "<blockquote>📌 Diminta oleh partner.</blockquote>"
+  "game_requested_by": "<blockquote>📌 Diminta oleh partner.</blockquote>",
+  "report_error_no_chat": "⚠️ Kamu hanya bisa melapor saat sedang chatting.",
+  "report_menu_title": "🚨 <b>LAPORKAN PARTNER</b>\n\nKenapa kamu ingin melaporkan orang ini?",
+  "report_reason_porn": "🔞 Pornografi / 18+",
+  "report_reason_harass": "🤬 Kasar / Pelecehan",
+  "report_reason_spam": "📢 Spam / Iklan",
+  "report_reason_scam": "👺 Penipuan",
+  "report_btn_cancel": "❌ Batal",
+  "report_sent": "✅ <b>Laporan Terkirim!</b>\nAdmin kami akan segera memeriksanya. Kamu bisa ketik /stop untuk keluar dari chat ini.",
+  "report_error_generic": "⚠️ Gagal memproses laporan.",
+  "ban_notification": "⛔ <b>AKUN DIBEKUKAN (BANNED)</b>\n\nKamu telah diblokir permanen dari OtterChatbot karena melanggar aturan komunitas.",
+  "warn_notification": "⚠️ <b>PERINGATAN DARI ADMIN</b>\n\nKami menerima laporan tentang perilakumu. Harap patuhi aturan atau kamu akan di-banned."
 }

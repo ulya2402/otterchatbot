@@ -22,6 +22,7 @@ type BotHandler struct {
 	Admin    *AdminHandler
 	Payment  *PaymentHandler
 	Game     *service.GameService
+	Report   *ReportHandler
 }
 
 func NewBotHandler(bot *telegram.Client, userRepo *repository.UserRepository, i18n *i18n.I18nService, cfg *config.Config, gameService *service.GameService) *BotHandler {
@@ -33,6 +34,7 @@ func NewBotHandler(bot *telegram.Client, userRepo *repository.UserRepository, i1
 		// FIX: Update parameter PaymentHandler agar sesuai dengan perubahan sebelumnya
 		Payment:  NewPaymentHandler(bot, userRepo, cfg, i18n),
 		Game:     gameService,
+		Report:   NewReportHandler(bot, userRepo, cfg, i18n),
 	}
 }
 
@@ -81,6 +83,11 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 		return
 	}
 
+	if user.IsBanned {
+		_, _ = h.Bot.SendMessage(telegramID, "⛔ <b>Account Banned.</b>\nYou can no longer use this bot.")
+		return
+	}
+
 	// --- [BARU] SATPAM PROFIL: Cek apakah data lengkap ---
 	// Jika Gender atau Preferensi kosong, paksa user mengisi dulu.
 	// Kecuali jika user sedang input lokasi (awaiting_location)
@@ -103,6 +110,11 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 
 	if msg.Text == "/next" {
 		h.handleNext(user)
+		return
+	}
+
+	if msg.Text == "/report" {
+		h.Report.HandleReportCommand(user)
 		return
 	}
 
@@ -169,6 +181,7 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 
 	case "/help":
 		h.sendHelpMenu(chatID, user.LanguageCode, false, 0)
+
 
 	default:
 		if user.Status == "queue" {
@@ -678,6 +691,17 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 	if data == "reveal:reject" {
 		_ = h.Bot.DeleteMessage(chatID, msgID)
 		_, _ = h.Bot.SendMessage(chatID, h.I18n.Get(user.LanguageCode, "share_rejected"))
+		return
+	}
+
+	if strings.HasPrefix(data, "report:") {
+		reason := strings.Split(data, ":")[1]
+		_ = h.Bot.DeleteMessage(chatID, msgID) // Hapus menu pilihan
+		h.Report.HandleReportCallback(user, reason)
+		return
+	}
+	if strings.HasPrefix(data, "admin:") {
+		h.Report.HandleAdminAction(telegramID, data, msgID)
 		return
 	}
 

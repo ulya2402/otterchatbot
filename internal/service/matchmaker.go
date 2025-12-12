@@ -88,19 +88,18 @@ func (s *MatchmakerService) processMood(mood string, isStrictDefault bool) {
 				freshA, errA := s.UserRepo.GetByTelegramID(userA.TelegramID)
 				freshB, errB := s.UserRepo.GetByTelegramID(userB.TelegramID)
 
-				// Jika error atau status user ternyata bukan "queue" lagi (misal udah stop/idle), BATALKAN.
-				if errA != nil || freshA == nil || freshA.Status != "queue" {
-					matchedIndices[i] = true // Anggap invalid biar gak diproses lagi
-					break // Ganti user A dengan kandidat lain
+				// [Pembaruan 2] Tambahkan Cek IsBanned
+				if errA != nil || freshA == nil || freshA.Status != "queue" || freshA.IsBanned {
+					matchedIndices[i] = true 
+					break 
 				}
-				if errB != nil || freshB == nil || freshB.Status != "queue" {
-					matchedIndices[j] = true // Anggap invalid
-					continue // Cari pasangan lain buat user A
+				if errB != nil || freshB == nil || freshB.Status != "queue" || freshB.IsBanned {
+					matchedIndices[j] = true 
+					continue 
 				}
 
 				// Jika aman, eksekusi match menggunakan data TERBARU (freshA & freshB)
 				s.executeMatch(freshA, freshB)
-				// --- [PEMBARUAN SELESAI] ---
 
 				matchedIndices[i] = true
 				matchedIndices[j] = true
@@ -133,6 +132,7 @@ func (s *MatchmakerService) checkLocationMatch(a, b *core.User) bool {
 func (s *MatchmakerService) executeMatch(a, b *core.User) {
 	log.Printf("MATCH FOUND: %s (%s) <-> %s (%s)", a.FirstName, a.Location, b.FirstName, b.Location)
 
+	// **[BUG BERADA DI SINI]:** Status diubah di database DULU.
 	a.Status = "chatting"
 	a.PartnerID = b.TelegramID
 	
@@ -156,8 +156,8 @@ func (s *MatchmakerService) executeMatch(a, b *core.User) {
 	}
 
 	msgA := s.I18n.Get(a.LanguageCode, "partner_found")
-	s.Bot.SendMessage(a.TelegramID, msgA)
+	s.Bot.SendMessage(a.TelegramID, msgA) // Pesan dikirim TERAKHIR, jika gagal, status sudah chatting
 
 	msgB := s.I18n.Get(b.LanguageCode, "partner_found")
-	s.Bot.SendMessage(b.TelegramID, msgB)
+	s.Bot.SendMessage(b.TelegramID, msgB) // Pesan dikirim TERAKHIR, jika gagal, status sudah chatting
 }
