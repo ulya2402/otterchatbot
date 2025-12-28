@@ -7,6 +7,7 @@ import (
 	"otterchatbot/pkg/i18n"
 	"otterchatbot/pkg/telegram"
 	"strings"
+	"fmt"
 	"time"
 )
 
@@ -33,27 +34,67 @@ func (s *MatchmakerService) Start() {
 		s.processMood("fun", false)
 		s.processMood("debate", false)
 		s.processMood("mabar", false)
+		s.processMood("all", false)
 		
 		time.Sleep(3 * time.Second)
 	}
 }
 
+func mergeUsers(specific []core.User, general []core.User) []core.User {
+	// Gunakan map untuk mencegah duplikat (jika ada logic error di db)
+	seen := make(map[int64]bool)
+	var result []core.User
+
+	// Masukkan user spesifik (misal: dating)
+	for _, u := range specific {
+		if !seen[u.TelegramID] {
+			seen[u.TelegramID] = true
+			result = append(result, u)
+		}
+	}
+
+	// Masukkan user general (all)
+	for _, u := range general {
+		if !seen[u.TelegramID] {
+			seen[u.TelegramID] = true
+			result = append(result, u)
+		}
+	}
+	return result
+}
+
 func (s *MatchmakerService) processMood(mood string, isStrictDefault bool) {
-	users, err := s.UserRepo.GetQueueByMood(mood)
+	// 1. Ambil user yang MEMANG milih mood ini
+	specificUsers, err := s.UserRepo.GetQueueByMood(mood)
 	if err != nil { return }
 
-	if len(users) < 2 { return }
+	// 2. Ambil user yang milih "ALL" (Fast Match)
+	// Kecuali jika kita memang sedang memproses mood "all", tidak perlu fetch ulang
+	var poolUsers []core.User
+	
+	if mood == "all" {
+		poolUsers = specificUsers
+	} else {
+		allUsers, err := s.UserRepo.GetQueueByMood("all")
+		if err == nil {
+			// Gabungkan: User Mood Ini + User Mood 'All'
+			poolUsers = mergeUsers(specificUsers, allUsers)
+		} else {
+			poolUsers = specificUsers
+		}
+	}
 
-	matchedIndices := make(map[int]bool)
+	if len(poolUsers) < 2 { return }
 
-	for i := 0; i < len(users); i++ {
-		if matchedIndices[i] { continue }
+	matchedIndices := make(map[int64]bool) // Ubah key jadi TelegramID biar unik
 
-		for j := i + 1; j < len(users); j++ {
-			if matchedIndices[j] { continue }
+	for i := 0; i < len(poolUsers); i++ {
+		userA := &poolUsers[i]
+		if matchedIndices[userA.TelegramID] { continue }
 
-			userA := &users[i]
-			userB := &users[j]
+		for j := i + 1; j < len(poolUsers); j++ {
+			userB := &poolUsers[j]
+			if matchedIndices[userB.TelegramID] { continue }
 
 			if userA.TelegramID == userB.TelegramID { continue }
 
@@ -67,13 +108,12 @@ func (s *MatchmakerService) processMood(mood string, isStrictDefault bool) {
 			shouldCheckStrictA := isStrictDefault || userA.IsVIP
 			shouldCheckStrictB := isStrictDefault || userB.IsVIP
 
-			// LOGIKA VIP:
-			// Jika user VIP, kita hormati preferensinya.
-			// TAPI, jika preferensinya "both", berarti dia mau sama siapa aja (Fast Match).
+			// LOGIKA VIP & PREFERENSI:
+			// Preferensi user tersimpan di Profil Global.
+			// Jadi meskipun user "All" masuk ke pool "Dating", filter gendernya tetap aktif.
 			
 			matchAtoB := true
 			if shouldCheckStrictA {
-				// Jika A VIP dan Pref "Both", otomatis True. Jika tidak, cek gender B.
 				matchAtoB = (userA.Preference == "both" || userA.Preference == userB.Gender)
 			}
 
@@ -85,24 +125,24 @@ func (s *MatchmakerService) processMood(mood string, isStrictDefault bool) {
 			isMatch = matchAtoB && matchBtoA
 
 			if isMatch {
+				// [Validasi Akhir] Pastikan status DB masih queue (Anti Race Condition sederhana)
 				freshA, errA := s.UserRepo.GetByTelegramID(userA.TelegramID)
 				freshB, errB := s.UserRepo.GetByTelegramID(userB.TelegramID)
 
-				// [Pembaruan 2] Tambahkan Cek IsBanned
 				if errA != nil || freshA == nil || freshA.Status != "queue" || freshA.IsBanned {
-					matchedIndices[i] = true 
+					matchedIndices[userA.TelegramID] = true 
 					break 
 				}
 				if errB != nil || freshB == nil || freshB.Status != "queue" || freshB.IsBanned {
-					matchedIndices[j] = true 
+					matchedIndices[userB.TelegramID] = true 
 					continue 
 				}
 
-				// Jika aman, eksekusi match menggunakan data TERBARU (freshA & freshB)
-				s.executeMatch(freshA, freshB)
+				// Eksekusi Match
+				s.executeMatch(freshA, freshB, mood) // Kirim mood biar user tau ketemu di topik apa
 
-				matchedIndices[i] = true
-				matchedIndices[j] = true
+				matchedIndices[userA.TelegramID] = true
+				matchedIndices[userB.TelegramID] = true
 				break
 			}
 		}
@@ -129,35 +169,57 @@ func (s *MatchmakerService) checkLocationMatch(a, b *core.User) bool {
 	return locA == locB
 }
 
-func (s *MatchmakerService) executeMatch(a, b *core.User) {
-	log.Printf("MATCH FOUND: %s (%s) <-> %s (%s)", a.FirstName, a.Location, b.FirstName, b.Location)
+func (s *MatchmakerService) buildMatchCard(receiver *core.User, partner *core.User, topic string) string {
+	title := s.I18n.Get(receiver.LanguageCode, "match_title")
+	lblTopic := s.I18n.Get(receiver.LanguageCode, "match_topic")
+	lblTip := s.I18n.Get(receiver.LanguageCode, "match_tip")
 
-	// **[BUG BERADA DI SINI]:** Status diubah di database DULU.
+	locText := partner.Location
+	if locText == "" || locText == "-" {
+		locText = "Global 🌍"
+	}
+
+	msg := fmt.Sprintf("%s\n\n", title)
+	msg += fmt.Sprintf("🎭 %s: <code>%s</code>\n\n", lblTopic, strings.ToUpper(topic))
+
+	msg += fmt.Sprintf("%s", lblTip)
+
+	return msg
+}
+
+func (s *MatchmakerService) executeMatch(a, b *core.User, topic string) {
+	log.Printf("MATCH FOUND (%s): %s <-> %s", topic, a.FirstName, b.FirstName)
+
 	a.Status = "chatting"
 	a.PartnerID = b.TelegramID
 	
 	b.Status = "chatting"
 	b.PartnerID = a.TelegramID
 
-	if err := s.UserRepo.Update(a); err != nil {
-		log.Printf("Failed to update user A: %v", err)
-		return
-	}
-	if err := s.UserRepo.Update(b); err != nil {
-		log.Printf("Failed to update user B: %v", err)
-		return
-	}
+	if err := s.UserRepo.Update(a); err != nil { return }
+	if err := s.UserRepo.Update(b); err != nil { return }
 
-	if a.LastMessageID != 0 {
-		_ = s.Bot.DeleteMessage(a.TelegramID, a.LastMessageID)
-	}
-	if b.LastMessageID != 0 {
-		_ = s.Bot.DeleteMessage(b.TelegramID, b.LastMessageID)
-	}
+	if a.LastMessageID != 0 { _ = s.Bot.DeleteMessage(a.TelegramID, a.LastMessageID) }
+	if b.LastMessageID != 0 { _ = s.Bot.DeleteMessage(b.TelegramID, b.LastMessageID) }
 
-	msgA := s.I18n.Get(a.LanguageCode, "partner_found")
-	s.Bot.SendMessage(a.TelegramID, msgA) // Pesan dikirim TERAKHIR, jika gagal, status sudah chatting
+	// Format pesan notifikasi
+	// Kita bisa modifikasi text locale nanti, misal: "Partner Found! (Topic: Dating)"
+	// Untuk sekarang pakai default dulu
+	
+	msgA := s.buildMatchCard(a, b, topic)
+	s.Bot.SendMessageComplex(telegram.SendMessageRequest{
+		ChatID: a.TelegramID,
+		Text: msgA,
+		ParseMode: "HTML",
+	})
 
-	msgB := s.I18n.Get(b.LanguageCode, "partner_found")
-	s.Bot.SendMessage(b.TelegramID, msgB) // Pesan dikirim TERAKHIR, jika gagal, status sudah chatting
+	// --- KIRIM MATCH CARD KE USER B ---
+	// User B melihat Data User A
+	msgB := s.buildMatchCard(b, a, topic)
+	s.Bot.SendMessageComplex(telegram.SendMessageRequest{
+		ChatID: b.TelegramID,
+		Text: msgB,
+		ParseMode: "HTML",
+	})
 }
+

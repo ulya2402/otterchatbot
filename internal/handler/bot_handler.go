@@ -23,9 +23,10 @@ type BotHandler struct {
 	Payment  *PaymentHandler
 	Game     *service.GameService
 	Report   *ReportHandler
+	AFK      *service.AFKService // [PEMBARUAN 1] Tambah Service AFK
 }
 
-func NewBotHandler(bot *telegram.Client, userRepo *repository.UserRepository, i18n *i18n.I18nService, cfg *config.Config, gameService *service.GameService) *BotHandler {
+func NewBotHandler(bot *telegram.Client, userRepo *repository.UserRepository, i18n *i18n.I18nService, cfg *config.Config, gameService *service.GameService, afkService *service.AFKService) *BotHandler {
 	return &BotHandler{
 		Bot:      bot,
 		UserRepo: userRepo,
@@ -35,6 +36,7 @@ func NewBotHandler(bot *telegram.Client, userRepo *repository.UserRepository, i1
 		Payment:  NewPaymentHandler(bot, userRepo, cfg, i18n),
 		Game:     gameService,
 		Report:   NewReportHandler(bot, userRepo, cfg, i18n),
+		AFK:      afkService,
 	}
 }
 
@@ -388,7 +390,8 @@ func (h *BotHandler) relayMessage(sender *core.User, msg *telegram.Message) {
 		return
 	}
 
-	// --- [BARU] CHAT ACTION & SPOILER LOGIC ---
+	h.AFK.Touch(sender.TelegramID)
+	
 	
 	var err error
 
@@ -447,6 +450,12 @@ func (h *BotHandler) relayMessage(sender *core.User, msg *telegram.Message) {
 
 func (h *BotHandler) stopChat(initiator *core.User) {
 	// 1. IDLE: Jika tidak sedang ngapa-ngapain, langsung kasih menu search
+	
+	h.AFK.Stop(initiator.TelegramID)
+	if initiator.PartnerID != 0 {
+		h.AFK.Stop(initiator.PartnerID)
+	}
+	
 	if initiator.Status == "idle" {
 		h.sendMoodSelector(initiator.TelegramID, initiator.LanguageCode, false, 0)
 		return

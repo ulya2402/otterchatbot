@@ -73,5 +73,19 @@
   "report_sent": "✅ <b>Laporan Terkirim!</b>\nAdmin kami akan segera memeriksanya. Kamu bisa ketik /stop untuk keluar dari chat ini.",
   "report_error_generic": "⚠️ Gagal memproses laporan.",
   "ban_notification": "⛔ <b>AKUN DIBEKUKAN (BANNED)</b>\n\nKamu telah diblokir permanen dari OtterChatbot karena melanggar aturan komunitas.",
-  "warn_notification": "⚠️ <b>PERINGATAN DARI ADMIN</b>\n\nKami menerima laporan tentang perilakumu. Harap patuhi aturan atau kamu akan di-banned."
+  "warn_notification": "⚠️ <b>PERINGATAN DARI ADMIN</b>\n\nKami menerima laporan tentang perilakumu. Harap patuhi aturan atau kamu akan di-banned.",
+  "mood_all": "🚀 Semua Topik",
+
+  "afk_alert_1": "👋 <b>Halo?</b> Kamu masih on?\nPartner kamu nungguin balesan nih.. 👀",
+  "afk_alert_2": "💤 <b>Lagi sibuk ya?</b>\nKalau mau udahan, ketik /stop aja biar partner kamu gak nunggu lama.",
+
+  "match_title": "🔔 <b>PARTNER DITEMUKAN!</b>",
+  "match_topic": "Topik",
+  "partner_info": "👤 <b>Tentang Partner:</b>",
+  "gender_male": "Laki-laki 👨",
+  "gender_female": "Perempuan 👩",
+  "gender_unknown": "Tidak Diketahui 👽",
+  "status_vip": "VIP Member 🌟",
+  "status_regular": "Member Biasa ☁️",
+  "match_tip": "💡 <i>Tips: Jangan lupa ucapkan 'Halo'!</i>"
 }

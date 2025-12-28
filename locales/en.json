@@ -73,5 +73,19 @@
   "report_sent": "✅ <b>Report Sent!</b>\nOur admin will review this shortly. You can type /stop to leave this chat.",
   "report_error_generic": "⚠️ Error processing report.",
   "ban_notification": "⛔ <b>YOU ARE BANNED</b>\n\nYou have been permanently banned from OtterChatbot due to violation of our rules.",
-  "warn_notification": "⚠️ <b>WARNING FROM ADMIN</b>\n\nWe received a report about your behavior. Please follow the rules or you will be banned."
+  "warn_notification": "⚠️ <b>WARNING FROM ADMIN</b>\n\nWe received a report about your behavior. Please follow the rules or you will be banned.",
+  "mood_all": "🚀 All Topics",
+
+  "afk_alert_1": "👋 <b>Hello?</b> Are you still there?\nYour partner is waiting for a reply.. 👀",
+  "afk_alert_2": "💤 <b>Busy?</b>\nIf you want to end the chat, just type /stop so your partner doesn't wait.",
+
+  "match_title": "🔔 <b>PARTNER FOUND!</b>",
+  "match_topic": "Topic",
+  "partner_info": "👤 <b>Partner Info:</b>",
+  "gender_male": "Male 👨",
+  "gender_female": "Female 👩",
+  "gender_unknown": "Secret 👽",
+  "status_vip": "VIP Member 🌟",
+  "status_regular": "Regular User ☁️",
+  "match_tip": "💡 <i>Tip: Don't forget to say 'Hi'!</i>"
 }

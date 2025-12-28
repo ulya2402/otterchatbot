@@ -23,6 +23,7 @@ var AvailableCountries = []Option{
 }
 
 var AvailableMoods = []Option{
+	{Code: "all", Label: "mood_all", Icon: ""},
 	{Code: "dating", Label: "mood_dating", Icon: ""},
 	{Code: "deeptalk", Label: "mood_deeptalk", Icon: ""},
 	{Code: "fun", Label: "mood_fun", Icon: ""},

@@ -31,7 +31,8 @@ func main() {
 
 	userRepo := repository.NewUserRepository(supabaseClient)
 	botClient := telegram.NewClient(cfg.BotToken)
-	botHandler := handler.NewBotHandler(botClient, userRepo, translator, cfg, gameService)
+	afkService := service.NewAFKService(userRepo, botClient, translator)
+	botHandler := handler.NewBotHandler(botClient, userRepo, translator, cfg, gameService, afkService)
 	matchmakerService := service.NewMatchmakerService(userRepo, botClient, translator)
 
 	log.Println("Registering bot commands to Telegram...")
@@ -39,6 +40,8 @@ func main() {
 
 	// Jalankan Matchmaker di background (Goroutine)
 	go matchmakerService.Start()
+
+	go afkService.Start()
 
 	log.Println("Bot is running. Polling for updates...")
 	
