@@ -52,7 +52,6 @@ func (s *AFKService) Stop(userID int64) {
 
 func (s *AFKService) checkAFK() {
 	s.mu.RLock()
-	// Copy map biar thread safe saat looping
 	activeUsers := make(map[int64]time.Time)
 	for k, v := range s.lastActivity {
 		activeUsers[k] = v
@@ -65,24 +64,19 @@ func (s *AFKService) checkAFK() {
 		duration := now.Sub(lastSeen)
 		minutes := int(duration.Minutes())
 
-		// LOGIKA SIKLUS 20 MENIT
-		// Modulo 20 artinya: 25 menit -> dianggap 5 menit.
-		cycle := minutes % 20
-
-		if cycle == 0 {
-			// Menit ke-0 atau 20, jangan kirim apa-apa (Silent Reset)
-			continue
+		// LOGIKA: Cuma 2 kali peringatan
+		
+		// 1. Peringatan Pertama (Menit ke-5)
+		if minutes == 5 {
+			s.sendAlert(userID, "afk_alert_1")
 		}
 
-		// Kirim Pesan Tipe A (Menit ke-5 dan ke-15)
-		if cycle == 5 || cycle == 15 {
-			s.sendAlert(userID, "afk_alert_1")
-		} 
-		
-		// Kirim Pesan Tipe B (Menit ke-10)
-		if cycle == 10 {
+		// 2. Peringatan Kedua & Terakhir (Menit ke-10)
+		if minutes == 20 {
 			s.sendAlert(userID, "afk_alert_2")
 		}
+
+		// Jika sudah menit ke-11 ke atas, bot akan diam saja.
 	}
 }
 
