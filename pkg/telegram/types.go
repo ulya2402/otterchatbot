@@ -5,6 +5,7 @@ type Update struct {
 	Message       *Message       `json:"message"`
 	CallbackQuery *CallbackQuery `json:"callback_query"`
 	PreCheckoutQuery   *PreCheckoutQuery `json:"pre_checkout_query"`
+	InlineQuery        *InlineQuery      `json:"inline_query"`
 }
 
 type Message struct {
@@ -167,4 +168,32 @@ type SetMyCommandsRequest struct {
 	Commands     []BotCommand     `json:"commands"`
 	Scope        *BotCommandScope `json:"scope,omitempty"`
 	LanguageCode string           `json:"language_code,omitempty"`
+}
+
+type InlineQuery struct {
+	ID       string `json:"id"`
+	From     *User  `json:"from"`
+	Query    string `json:"query"`
+	Offset   string `json:"offset"`
+}
+
+type InlineQueryResultArticle struct {
+	Type                string              `json:"type"`
+	ID                  string              `json:"id"`
+	Title               string              `json:"title"`
+	InputMessageContent InputMessageContent `json:"input_message_content"`
+	ReplyMarkup         *InlineKeyboardMarkup `json:"reply_markup,omitempty"`
+	Description         string              `json:"description,omitempty"`
+	ThumbURL            string              `json:"thumb_url,omitempty"`
+}
+
+type InputMessageContent struct {
+	MessageText string `json:"message_text"`
+	ParseMode   string `json:"parse_mode"`
+}
+
+type AnswerInlineQueryRequest struct {
+	InlineQueryID string        `json:"inline_query_id"`
+	Results       []interface{} `json:"results"`
+	CacheTime     int           `json:"cache_time"`
 }

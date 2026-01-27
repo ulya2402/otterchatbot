@@ -366,3 +366,67 @@ func (c *Client) SetMyCommands(commands []BotCommand, langCode string) error {
 	
 	return nil
 }
+
+func (c *Client) AnswerInlineQuery(queryID string, results []interface{}) error {
+	req := AnswerInlineQueryRequest{
+		InlineQueryID: queryID,
+		Results:       results,
+		CacheTime:     0, 
+	}
+
+	jsonData, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("marshal error: %v", err)
+	}
+
+	url := fmt.Sprintf("%s%s/answerInlineQuery", telegramAPIBase, c.Token)
+	resp, err := c.HttpClient.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return nil
+}
+
+func (c *Client) GetBotUsername() string {
+	// Cache sederhana bisa diterapkan di sini, tapi kita fetch sekali saja via getMe
+	url := fmt.Sprintf("%s%s/getMe", telegramAPIBase, c.Token)
+	resp, err := c.HttpClient.Get(url)
+	if err != nil { return "bot" }
+	defer resp.Body.Close()
+	
+	body, _ := io.ReadAll(resp.Body)
+	var apiResp struct {
+		Result User `json:"result"`
+	}
+	json.Unmarshal(body, &apiResp)
+	return apiResp.Result.Username
+}
+
+// SendMessageWithMarkup mengirim pesan teks disertai tombol (Inline Keyboard)
+func (c *Client) SendMessageWithMarkup(chatID int64, text string, replyMarkup interface{}) error {
+	req := struct {
+		ChatID      int64       `json:"chat_id"`
+		Text        string      `json:"text"`
+		ParseMode   string      `json:"parse_mode"`
+		ReplyMarkup interface{} `json:"reply_markup"`
+	}{
+		ChatID:      chatID,
+		Text:        text,
+		ParseMode:   "HTML",
+		ReplyMarkup: replyMarkup,
+	}
+
+	jsonData, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("marshal error: %v", err)
+	}
+
+	url := fmt.Sprintf("%s%s/sendMessage", telegramAPIBase, c.Token)
+	resp, err := c.HttpClient.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return nil
+}

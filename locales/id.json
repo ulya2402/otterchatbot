@@ -87,5 +87,30 @@
   "gender_unknown": "Tidak Diketahui 👽",
   "status_vip": "VIP Member 🌟",
   "status_regular": "Member Biasa ☁️",
-  "match_tip": "💡 <i>Tips: Jangan lupa ucapkan 'Halo'!</i>"
+  "match_tip": "💡 <i>Tips: Jangan lupa ucapkan 'Halo'!</i>",
+
+  "secret_mode_start": "✍️ <b>Mode Pesan Rahasia</b>\n\nSilakan tulis pesanmu. Identitasmu tidak akan diketahui penerima.\n<i>Ketik /cancel untuk membatalkan.</i>",
+  "secret_sent_success": "✅ <b>Terkirim!</b>\nPesan rahasiamu sudah disampaikan.",
+  "secret_received": "💌 <b>PESAN RAHASIA BARU!</b>\nAda seseorang mengirim pesan rahasia kepadamu.\nKetik /inbox untuk membacanya.",
+  "secret_error_self": "⚠️ Kamu tidak bisa mengirim pesan rahasia ke diri sendiri.",
+  "secret_error_busy": "⚠️ <b>Sibuk!</b>\nSelesaikan dulu sesi chat/antrian kamu (/stop) baru bisa mengirim pesan rahasia.",
+  "secret_error_txt_only": "⚠️ Harap kirim teks saja untuk pesan rahasia.",
+  "secret_cancelled": "❌ Pesan rahasia dibatalkan.",
+  "inbox_header": "📬 <b>KOTAK MASUK (%d Pesan)</b>\n\n",
+  "inbox_empty": "📭 <b>Inbox Kosong.</b>\nPanggil aku <code>@OtterChatbot</code> dimana saja, agar crush mu bisa mengirim pesan!",
+  "inbox_footer": "🗑 <i>Pesan di atas telah dihapus dari server setelah dibaca.</i>",
+  "inbox_btn_invite": "📝 Kirim Pesan Rahasia",
+  "inbox_article_title": "Undangan Pesan Rahasia",
+  "inbox_article_desc": "Izinkan orang lain mengirim pesan anonim kepadamu.",
+  "inbox_menu_btn": "📬 Inbox Saya",
+
+  "busy_secret_title": "⚠️ <b>Sedang Sibuk</b>",
+  "busy_secret_desc": "Kamu sedang dalam percakapan/antrian. Mau berhenti dan langsung kirim pesan rahasia?",
+  "btn_stop_and_send": "🔴 Stop & Tulis Pesan",
+
+  "partner_stopped": "🔕 <b>Partner telah menghentikan percakapan.</b>\nTekan /search untuk mencari partner baru.",
+  "chat_stopped": "🛑 <b>Kamu menghentikan percakapan.</b>",
+  "next_partner": "🔍 <b>Mencari partner baru...</b>",
+  "partner_stop": "🔕 <b>Partner telah menghentikan percakapan.</b>"
+
 }

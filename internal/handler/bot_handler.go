@@ -10,6 +10,7 @@ import (
 	"otterchatbot/pkg/i18n"
 	"otterchatbot/pkg/telegram"
 	"strings"
+	"strconv"
 )
 
 // Gunakan URL yang pasti berakhiran .png/.jpg dan dapat diakses publik
@@ -24,9 +25,11 @@ type BotHandler struct {
 	Game     *service.GameService
 	Report   *ReportHandler
 	AFK      *service.AFKService // [PEMBARUAN 1] Tambah Service AFK
+	Inbox    *InboxHandler // <--- TAMBAHAN
 }
 
 func NewBotHandler(bot *telegram.Client, userRepo *repository.UserRepository, i18n *i18n.I18nService, cfg *config.Config, gameService *service.GameService, afkService *service.AFKService) *BotHandler {
+	inboxRepo := repository.NewInboxRepository(userRepo.DB)
 	return &BotHandler{
 		Bot:      bot,
 		UserRepo: userRepo,
@@ -37,11 +40,18 @@ func NewBotHandler(bot *telegram.Client, userRepo *repository.UserRepository, i1
 		Game:     gameService,
 		Report:   NewReportHandler(bot, userRepo, cfg, i18n),
 		AFK:      afkService,
-	}
+		Inbox:    NewInboxHandler(bot, inboxRepo, userRepo, i18n),
+		}
 }
 
 func (h *BotHandler) HandleUpdate(update telegram.Update) {
 	// 1. Tangani Pembayaran (Prioritas)
+
+	if update.InlineQuery != nil {
+		h.Inbox.HandleInlineQuery(update.InlineQuery)
+		return
+	}
+
 	if update.PreCheckoutQuery != nil {
 		h.Payment.HandlePreCheckout(update.PreCheckoutQuery)
 		return
@@ -81,18 +91,95 @@ func (h *BotHandler) handleMessage(msg *telegram.Message) {
 	if err != nil { return }
 
 	if user == nil {
-		h.startOnboarding(msg)
-		return
+		// Jika user baru klik link secret message
+		if strings.HasPrefix(msg.Text, "/start secret_") {
+			h.startOnboarding(msg) // Buat user dulu
+			// Ambil ulang user yang baru dibuat
+			user, _ = h.UserRepo.GetByTelegramID(telegramID)
+			// Lanjut ke logic deep link di bawah
+		} else {
+			h.startOnboarding(msg)
+			return
+		}
 	}
 
 	if user.IsBanned {
-		_, _ = h.Bot.SendMessage(telegramID, "⛔ <b>Account Banned.</b>\nYou can no longer use this bot.")
+		_, _ = h.Bot.SendMessage(telegramID, "⛔ <b>Account Banned.</b>")
 		return
 	}
 
-	// --- [BARU] SATPAM PROFIL: Cek apakah data lengkap ---
-	// Jika Gender atau Preferensi kosong, paksa user mengisi dulu.
-	// Kecuali jika user sedang input lokasi (awaiting_location)
+	// --- HANDLE DEEP LINK (Secret Message Mode) ---
+	if strings.HasPrefix(msg.Text, "/start secret_") {
+		// Format: /start secret_123456
+		targetIDStr := strings.TrimPrefix(msg.Text, "/start secret_")
+		targetID, _ := strconv.ParseInt(targetIDStr, 10, 64)
+
+		if targetID == telegramID {
+			// [PERBARUAN] Ambil teks dari locales
+			h.Bot.SendMessage(chatID, h.I18n.Get(user.LanguageCode, "secret_error_self"))
+			return
+		}
+
+		if user.Status == "chatting" || user.Status == "queue" {
+			confirmText := fmt.Sprintf("%s\n%s", 
+				h.I18n.Get(user.LanguageCode, "busy_secret_title"),
+				h.I18n.Get(user.LanguageCode, "busy_secret_desc"),
+			)
+			
+			// Tombol Callback membawa ID Target: "stop_sec:12345"
+			callbackData := fmt.Sprintf("stop_sec:%d", targetID)
+			
+			keyboard := telegram.InlineKeyboardMarkup{
+				InlineKeyboard: [][]telegram.InlineKeyboardButton{
+					{{Text: h.I18n.Get(user.LanguageCode, "btn_stop_and_send"), CallbackData: callbackData}},
+				},
+			}
+			
+			h.Bot.SendMessageWithMarkup(chatID, confirmText, keyboard)
+			return
+		}
+
+		user.Status = "secret_mode" 
+		user.LastPartnerID = targetID 
+		
+		err := h.UserRepo.Update(user)
+		if err != nil {
+			h.Bot.SendMessage(chatID, "❌ System Error.")
+			return
+		}
+
+		h.Bot.SendMessage(chatID, h.I18n.Get(user.LanguageCode, "secret_mode_start"))
+		return
+	}
+
+	// --- HANDLE CANCEL ---
+	if msg.Text == "/cancel" && user.Status == "secret_mode" {
+		user.Status = "idle"
+		user.LastPartnerID = 0
+		h.UserRepo.Update(user)
+		h.Bot.SendMessage(chatID, h.I18n.Get(user.LanguageCode, "secret_cancelled"))
+		h.sendMainMenu(chatID, user, false, 0)
+		return
+	}
+
+	// --- HANDLE INBOX ---
+	if msg.Text == "/inbox" {
+		h.Inbox.ShowInbox(user)
+		return
+	}
+
+	// --- HANDLE INPUT PESAN RAHASIA ---
+	if user.Status == "secret_mode" {
+		// Pastikan teks
+		if msg.Text == "" {
+			h.Bot.SendMessage(chatID, h.I18n.Get(user.LanguageCode, "secret_error_txt_only"))
+			
+			return
+		}
+		h.Inbox.HandleIncomingSecretMessage(user, msg.Text)
+		return
+	}
+
 	if (user.Gender == "" || user.Preference == "") && user.Status != "awaiting_location" {
 		if user.LastMessageID != 0 { _ = h.Bot.DeleteMessage(chatID, user.LastMessageID) }
 		
@@ -308,12 +395,17 @@ func (h *BotHandler) cleanStatus(user *core.User) {
 // FIX: Tambahkan parameter isEdit dan msgID
 func (h *BotHandler) sendMainMenu(chatID int64, user *core.User, isEdit bool, msgID int) {
 	caption := h.I18n.Get(user.LanguageCode, "welcome_caption")
+
+	btnInbox := h.I18n.Get(user.LanguageCode, "inbox_menu_btn")
 	
 	keyboard := telegram.InlineKeyboardMarkup{
 		InlineKeyboard: [][]telegram.InlineKeyboardButton{
 			{
 				{Text: h.I18n.Get(user.LanguageCode, "btn_search"), CallbackData: "cmd:search"},
 			},
+			{
+				{Text: btnInbox, CallbackData: "cmd:inbox"},
+            },
             // Update baris ini untuk menampilkan tombol VIP
 			{
 				{Text: h.I18n.Get(user.LanguageCode, "btn_profile"), CallbackData: "cmd:profile"},
@@ -676,6 +768,37 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 	user, err := h.UserRepo.GetByTelegramID(telegramID)
 	if err != nil || user == nil { return }
 
+	if strings.HasPrefix(data, "stop_sec:") {
+		// Ambil ID Target dari tombol
+		targetIDStr := strings.TrimPrefix(data, "stop_sec:")
+		targetID, _ := strconv.ParseInt(targetIDStr, 10, 64)
+
+		// 1. Matikan Chat / Antrian Lama (Logika Manual agar tidak kirim Menu Utama)
+		if user.Status == "chatting" && user.PartnerID != 0 {
+			partner, _ := h.UserRepo.GetByTelegramID(user.PartnerID)
+			if partner != nil {
+				h.Bot.SendMessage(partner.TelegramID, h.I18n.Get(partner.LanguageCode, "partner_stopped"))
+				partner.Status = "idle"
+				partner.PartnerID = 0
+				h.UserRepo.Update(partner)
+			}
+		}
+		// Reset User sendiri dulu
+		user.PartnerID = 0
+		
+		// 2. Langsung Masuk Mode Rahasia
+		user.Status = "secret_mode"
+		user.LastPartnerID = targetID // Set Target Tujuan
+		h.UserRepo.Update(user)
+
+		// 3. Hapus pesan peringatan sebelumnya
+		_ = h.Bot.DeleteMessage(chatID, msgID)
+
+		// 4. Minta user menulis pesan
+		h.Bot.SendMessage(chatID, h.I18n.Get(user.LanguageCode, "secret_mode_start"))
+		return
+	}
+
 	// --- [BARU] SATPAM PROFIL ---
 	// Cek apakah aksi ini adalah aksi "Setup" (isi data)
 	isSetupAction := strings.HasPrefix(data, "gender:") || 
@@ -695,6 +818,11 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 		// Hapus pesan permintaan agar tidak bisa diklik 2x
 		_ = h.Bot.DeleteMessage(chatID, msgID)
 		h.executeReveal(user)
+		return
+	}
+	if data == "cmd:inbox" {
+		_ = h.Bot.DeleteMessage(chatID, msgID)
+		h.Inbox.ShowInbox(user)
 		return
 	}
 	if data == "reveal:reject" {

@@ -87,5 +87,29 @@
   "gender_unknown": "Secret 👽",
   "status_vip": "VIP Member 🌟",
   "status_regular": "Regular User ☁️",
-  "match_tip": "💡 <i>Tip: Don't forget to say 'Hi'!</i>"
+  "match_tip": "💡 <i>Tip: Don't forget to say 'Hi'!</i>",
+
+  "secret_mode_start": "✍️ <b>Secret Message Mode</b>\n\nWrite your message below. Your identity will remain hidden.\n<i>Type /cancel to cancel.</i>",
+  "secret_sent_success": "✅ <b>Sent!</b>\nYour secret message has been delivered.",
+  "secret_received": "💌 <b>NEW SECRET MESSAGE!</b>\nSomeone sent you a secret message.\nType /inbox to read it.",
+  "secret_error_self": "⚠️ You cannot send a secret message to yourself.",
+  "secret_error_busy": "⚠️ <b>Busy!</b>\nPlease stop your current chat/queue first (`/stop`) to send a secret message.",
+  "secret_error_txt_only": "⚠️ Please send text only for secret messages.",
+  "secret_cancelled": "❌ Secret message cancelled.",
+  "inbox_header": "📬 <b>INBOX (%d Messages)</b>\n\n",
+  "inbox_empty": "📭 <b>Inbox Empty.</b>\nType <code>@OtterChatbot</code> in any chat, so your crush can send you a secret message!",
+  "inbox_footer": "🗑 <i>Messages above have been deleted from server after reading.</i>",
+  "inbox_btn_invite": "📝 Send Secret Message",
+  "inbox_article_title": "Secret Message Invite",
+  "inbox_article_desc": "Allow others to send you anonymous messages.",
+  "inbox_menu_btn": "📬 My Inbox",
+
+  "busy_secret_title": "⚠️ <b>Busy</b>",
+  "busy_secret_desc": "You are currently in a chat/queue. Do you want to stop and send the secret message immediately?",
+  "btn_stop_and_send": "🔴 Stop & Write Message",
+
+  "partner_stopped": "🔕 <b>Partner has stopped the chat.</b>\nType /search to find a new partner.",
+  "chat_stopped": "🛑 <b>You stopped the chat.</b>",
+  "next_partner": "🔍 <b>Searching for a new partner...</b>",
+  "partner_stop": "🔕 <b>Partner has stopped the chat.</b>"
 }

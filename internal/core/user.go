@@ -22,3 +22,12 @@ type User struct {
 	LastChargeID  string     `json:"last_charge_id"` 
 	CreatedAt     time.Time `json:"created_at,omitempty"`
 }
+
+type InboxMessage struct {
+	ID         int64     `json:"id,omitempty"`         // <--- PERUBAHAN: Tambah ,omitempty
+	ReceiverID int64     `json:"receiver_id"`
+	SenderID   int64     `json:"sender_id"`
+	Message    string    `json:"message"`
+	CreatedAt  time.Time `json:"created_at,omitempty"` // <--- PERUBAHAN: Tambah ,omitempty
+	IsRead     bool      `json:"is_read"`
+}
