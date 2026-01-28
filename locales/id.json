@@ -91,13 +91,13 @@
 
   "secret_mode_start": "✍️ <b>Mode Pesan Rahasia</b>\n\nSilakan tulis pesanmu. Identitasmu tidak akan diketahui penerima.\n<i>Ketik /cancel untuk membatalkan.</i>",
   "secret_sent_success": "✅ <b>Terkirim!</b>\nPesan rahasiamu sudah disampaikan.",
-  "secret_received": "💌 <b>PESAN RAHASIA BARU!</b>\nAda seseorang mengirim pesan rahasia kepadamu.\nKetik /inbox untuk membacanya.",
+  "secret_received": "💌 <b>PESAN RAHASIA BARU!</b>\n\nAda seseorang yang mengirim pesan rahasia kepadamu.\nKetik /inbox untuk membacanya.",
   "secret_error_self": "⚠️ Kamu tidak bisa mengirim pesan rahasia ke diri sendiri.",
   "secret_error_busy": "⚠️ <b>Sibuk!</b>\nSelesaikan dulu sesi chat/antrian kamu (/stop) baru bisa mengirim pesan rahasia.",
   "secret_error_txt_only": "⚠️ Harap kirim teks saja untuk pesan rahasia.",
   "secret_cancelled": "❌ Pesan rahasia dibatalkan.",
   "inbox_header": "📬 <b>KOTAK MASUK (%d Pesan)</b>\n\n",
-  "inbox_empty": "📭 <b>Inbox Kosong.</b>\nPanggil aku <code>@OtterChatbot</code> dimana saja, agar crush mu bisa mengirim pesan!",
+  "inbox_empty": "📭 <b>Inbox Kosong.</b>\n\nPanggil aku <code>@OtterChatbot</code> dimana saja, agar crush mu bisa mengirim pesan!",
   "inbox_footer": "🗑 <i>Pesan di atas telah dihapus dari server setelah dibaca.</i>",
   "inbox_btn_invite": "📝 Kirim Pesan Rahasia",
   "inbox_article_title": "Undangan Pesan Rahasia",
@@ -111,6 +111,16 @@
   "partner_stopped": "🔕 <b>Partner telah menghentikan percakapan.</b>\nTekan /search untuk mencari partner baru.",
   "chat_stopped": "🛑 <b>Kamu menghentikan percakapan.</b>",
   "next_partner": "🔍 <b>Mencari partner baru...</b>",
-  "partner_stop": "🔕 <b>Partner telah menghentikan percakapan.</b>"
+  "partner_stop": "🔕 <b>Partner telah menghentikan percakapan.</b>",
+
+  "btn_peek": "🕵️ Siapa ini?",
+  "btn_clear_inbox": "🗑 Bersihkan Inbox",
+  "peek_locked": "🔒 <b>Fitur Terkunci!</b>\n\nUpgrade ke VIP (/vip) untuk melihat petunjuk sender.",
+  "peek_result": "🕵️ <b>Petunjuk Sender:</b>\n\nJenis Kelamin: %s\nNama: %s",
+  "inbox_cleared": "✅ Semua pesan telah dihapus.",
+
+  "inbox_confirm_text": "⚠️ <b>Konfirmasi Hapus</b>\n\nApakah kamu yakin ingin menghapus SEMUA pesan? Tindakan ini tidak bisa dibatalkan.",
+  "btn_yes": "✅ Ya, Hapus",
+  "btn_no": "❌ Batal"
 
 }

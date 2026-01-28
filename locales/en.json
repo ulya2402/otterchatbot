@@ -111,5 +111,15 @@
   "partner_stopped": "🔕 <b>Partner has stopped the chat.</b>\nType /search to find a new partner.",
   "chat_stopped": "🛑 <b>You stopped the chat.</b>",
   "next_partner": "🔍 <b>Searching for a new partner...</b>",
-  "partner_stop": "🔕 <b>Partner has stopped the chat.</b>"
+  "partner_stop": "🔕 <b>Partner has stopped the chat.</b>",
+
+  "btn_peek": "🕵️ Who is this?",
+  "btn_clear_inbox": "🗑 Clear Inbox",
+  "peek_locked": "🔒 <b>Locked!</b>\nUpgrade to VIP (/vip) to see sender clues.",
+  "peek_result": "🕵️ <b>Sender Clue:</b>\n\nGender: %s\nName: %s",
+  "inbox_cleared": "✅ All messages cleared.",
+
+  "inbox_confirm_text": "⚠️ <b>Delete Confirmation</b>\n\nAre you sure you want to delete ALL messages? This cannot be undone.",
+  "btn_yes": "✅ Yes, Delete",
+  "btn_no": "❌ Cancel"
 }

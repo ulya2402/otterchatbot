@@ -759,21 +759,26 @@ func (h *BotHandler) sendOrEdit(chatID int64, text string, markup telegram.Inlin
 }
 
 func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
-	h.Bot.AnswerCallbackQuery(cb.ID, "")
 	telegramID := cb.From.ID
 	chatID := cb.Message.Chat.ID
 	msgID := cb.Message.MessageID
 	data := cb.Data
 
-	user, err := h.UserRepo.GetByTelegramID(telegramID)
+	if !strings.HasPrefix(data, "peek:") && 
+	   !strings.HasPrefix(data, "lang:") && 
+	   data != "clear_inbox" &&
+	   data != "clear_yes" && 
+	   data != "clear_no"{
+		h.Bot.AnswerCallbackQuery(cb.ID, "", false)
+	}
+
+	user, err := h.UserRepo.GetByTelegramID(cb.From.ID)
 	if err != nil || user == nil { return }
 
 	if strings.HasPrefix(data, "stop_sec:") {
-		// Ambil ID Target dari tombol
 		targetIDStr := strings.TrimPrefix(data, "stop_sec:")
 		targetID, _ := strconv.ParseInt(targetIDStr, 10, 64)
 
-		// 1. Matikan Chat / Antrian Lama (Logika Manual agar tidak kirim Menu Utama)
 		if user.Status == "chatting" && user.PartnerID != 0 {
 			partner, _ := h.UserRepo.GetByTelegramID(user.PartnerID)
 			if partner != nil {
@@ -783,19 +788,49 @@ func (h *BotHandler) handleCallback(cb *telegram.CallbackQuery) {
 				h.UserRepo.Update(partner)
 			}
 		}
-		// Reset User sendiri dulu
 		user.PartnerID = 0
-		
-		// 2. Langsung Masuk Mode Rahasia
 		user.Status = "secret_mode"
-		user.LastPartnerID = targetID // Set Target Tujuan
+		user.LastPartnerID = targetID 
 		h.UserRepo.Update(user)
 
-		// 3. Hapus pesan peringatan sebelumnya
 		_ = h.Bot.DeleteMessage(chatID, msgID)
-
-		// 4. Minta user menulis pesan
 		h.Bot.SendMessage(chatID, h.I18n.Get(user.LanguageCode, "secret_mode_start"))
+		return
+	}
+
+	// --- INBOX CALLBACKS ---
+	if strings.HasPrefix(data, "peek:") {
+		// [PERBAIKAN] Panggil HandlePeek tanpa userRepo get lagi (sudah ada diatas)
+		h.Inbox.HandlePeek(cb, user)
+		return
+	}
+
+	if data == "clear_inbox" {
+		// Klik pertama -> Tanya Dulu
+		h.Inbox.HandleAskClear(cb, user)
+		return
+	}
+	
+	if data == "clear_yes" {
+		// Klik Ya -> Eksekusi
+		h.Inbox.HandleConfirmClear(cb, user)
+		return
+	}
+
+	if data == "clear_no" {
+		// Klik Batal -> Balikin Tombol
+		h.Inbox.HandleCancelClear(cb, user)
+		return
+	}
+
+	if data == "clear_inbox" {
+		h.Inbox.HandleClear(cb, user)
+		return
+	}
+
+	if data == "cmd:inbox" {
+		_ = h.Bot.DeleteMessage(chatID, msgID)
+		h.Inbox.ShowInbox(user)
 		return
 	}
 

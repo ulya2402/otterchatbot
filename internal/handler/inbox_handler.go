@@ -6,7 +6,11 @@ import (
 	"otterchatbot/internal/repository"
 	"otterchatbot/pkg/i18n"
 	"otterchatbot/pkg/telegram"
+	"strconv"
+	"strings"
 )
+
+const InviteBannerURL = "https://i.ibb.co.com/C5SFnyx8/Untitled-design-3.png"
 
 type InboxHandler struct {
 	Bot       *telegram.Client
@@ -29,11 +33,17 @@ func (h *InboxHandler) HandleInlineQuery(query *telegram.InlineQuery) {
 	deepLink := fmt.Sprintf("https://t.me/%s?start=secret_%d", h.Bot.GetBotUsername(), query.From.ID)
 
 	lang := query.From.LanguageCode
+	
+	// Teks Tombol
 	btnText := h.I18n.Get(lang, "inbox_btn_invite")
-	title := h.I18n.Get(lang, "inbox_article_title")
-	desc := h.I18n.Get(lang, "inbox_article_desc")
+	
+	// JUDUL & DESKRIPSI (Agar di list muncul teksnya)
+	title := "📝 Kirim Pesan Rahasia"
+	desc := "Klik di sini untuk mengirim kartu undangan ke chat ini."
 
-	textParams := "Click the button below to send me a secret message! 🤫"
+	// Trik HTML: Link Gambar Tersembunyi (Zero Width Space)
+	// Ini membuat gambar muncul besar di chat setelah dikirim
+	textParams := fmt.Sprintf("<a href=\"%s\">&#8205;</a>%s", InviteBannerURL, "Click the button below to send me a secret message! 🤫")
 	
 	keyboard := telegram.InlineKeyboardMarkup{
 		InlineKeyboard: [][]telegram.InlineKeyboardButton{
@@ -41,21 +51,24 @@ func (h *InboxHandler) HandleInlineQuery(query *telegram.InlineQuery) {
 		},
 	}
 
+	// KITA PAKAI "ARTICLE" AGAR SEKALI KLIK LANGSUNG KIRIM (INSTANT)
 	article := telegram.InlineQueryResultArticle{
 		Type:  "article",
 		ID:    resultID,
-		Title: title,
+		Title: title,       // Judul di List
+		Description: desc,  // Deskripsi di List
 		InputMessageContent: telegram.InputMessageContent{
 			MessageText: textParams,
 			ParseMode:   "HTML",
 		},
 		ReplyMarkup: &keyboard,
-		Description: desc,
-		ThumbURL:    "https://img.icons8.com/color/48/shh.png", 
+		
+		// Thumbnail agar di list ada foto kecilnya di samping teks
+		ThumbURL:    InviteBannerURL, 
 	}
 
 	results := []interface{}{article}
-	_ = h.Bot.AnswerInlineQuery(query.ID, results)
+	h.Bot.AnswerInlineQuery(query.ID, results)
 }
 
 func (h *InboxHandler) HandleIncomingSecretMessage(sender *core.User, text string) {
@@ -86,7 +99,6 @@ func (h *InboxHandler) notifyReceiver(targetID int64) {
 	if err != nil || target == nil { return }
 
 	notifText := h.I18n.Get(target.LanguageCode, "secret_received")
-	
 	h.Bot.SendMessage(targetID, notifText)
 }
 
@@ -104,18 +116,151 @@ func (h *InboxHandler) ShowInbox(user *core.User) {
 		return
 	}
 
+	// 1. Kirim Header
 	header := fmt.Sprintf(h.I18n.Get(lang, "inbox_header"), len(messages))
-	text := header
-	
+	h.Bot.SendMessage(user.TelegramID, header)
+
+	// 2. Loop dan kirim pesan satu per satu dengan tombol PEEK
 	for _, msg := range messages {
-		// Fungsi escapeHTML akan otomatis menggunakan yang ada di bot_handler.go karena satu package
-		safeMsg := escapeHTML(msg.Message)
-		text += fmt.Sprintf("<blockquote>%s</blockquote>\n\n", safeMsg)
+		// Escape HTML
+		safeMsg := strings.ReplaceAll(msg.Message, "<", "&lt;")
+		safeMsg = strings.ReplaceAll(safeMsg, ">", "&gt;")
+		
+		formattedMsg := fmt.Sprintf("<blockquote>%s</blockquote>", safeMsg)
+
+		// Tombol Intip (Callback: peek:MSG_ID)
+		keyboard := telegram.InlineKeyboardMarkup{
+			InlineKeyboard: [][]telegram.InlineKeyboardButton{
+				{{Text: h.I18n.Get(lang, "btn_peek"), CallbackData: fmt.Sprintf("peek:%d", msg.ID)}},
+			},
+		}
+
+		h.Bot.SendMessageWithMarkup(user.TelegramID, formattedMsg, keyboard)
 	}
 
-	text += h.I18n.Get(lang, "inbox_footer")
+	// 3. Tombol Bersihkan Inbox (Paling Bawah)
+	clearKeyboard := telegram.InlineKeyboardMarkup{
+		InlineKeyboard: [][]telegram.InlineKeyboardButton{
+			{{Text: h.I18n.Get(lang, "btn_clear_inbox"), CallbackData: "clear_inbox"}},
+		},
+	}
+	h.Bot.SendMessageWithMarkup(user.TelegramID, "👇", clearKeyboard)
+}
 
-	h.Bot.SendMessage(user.TelegramID, text)
+func (h *InboxHandler) HandlePeek(cb *telegram.CallbackQuery, user *core.User) {
+	parts := strings.Split(cb.Data, ":")
+	if len(parts) < 2 { return }
+	
+	msgIDStr := parts[1]
+	msgID, _ := strconv.ParseInt(msgIDStr, 10, 64)
 
+	// Helper lokal: Bersihkan tag HTML karena Popup Telegram tidak support formatting
+	stripHTML := func(s string) string {
+		s = strings.ReplaceAll(s, "<b>", "")
+		s = strings.ReplaceAll(s, "</b>", "")
+		s = strings.ReplaceAll(s, "<i>", "")
+		s = strings.ReplaceAll(s, "</i>", "")
+		s = strings.ReplaceAll(s, "<code>", "")
+		s = strings.ReplaceAll(s, "</code>", "")
+		return s
+	}
+
+	// 1. Cek VIP
+	if !user.IsVIP {
+		alertText := h.I18n.Get(user.LanguageCode, "peek_locked")
+		// [PERBAIKAN] Bersihkan HTML sebelum kirim ke Popup
+		h.Bot.AnswerCallbackQuery(cb.ID, stripHTML(alertText), true) 
+		return
+	}
+
+	// 2. Ambil Pesan
+	msg, err := h.InboxRepo.GetMessageByID(msgID)
+	if err != nil || msg == nil {
+		h.Bot.AnswerCallbackQuery(cb.ID, "❌ Message not found.", false)
+		return
+	}
+
+	// 3. Ambil Info Pengirim
+	sender, err := h.UserRepo.GetByTelegramID(msg.SenderID)
+	if err != nil || sender == nil {
+		h.Bot.AnswerCallbackQuery(cb.ID, "❌ Sender not found.", false)
+		return
+	}
+
+	// 4. Generate Clue (Masking Nama)
+	maskedName := "Unknown"
+	if len(sender.FirstName) > 0 {
+		runes := []rune(sender.FirstName)
+		maskedName = string(runes[0]) + "***"
+	}
+	
+	genderText := h.I18n.Get(user.LanguageCode, "gender_unknown")
+	if sender.Gender == "male" {
+		genderText = h.I18n.Get(user.LanguageCode, "gender_male")
+	} else if sender.Gender == "female" {
+		genderText = h.I18n.Get(user.LanguageCode, "gender_female")
+	}
+
+	// 5. Tampilkan Popup Clue
+	clueText := fmt.Sprintf(h.I18n.Get(user.LanguageCode, "peek_result"), genderText, maskedName)
+	
+	// [PERBAIKAN] Bersihkan HTML sebelum kirim ke Popup
+	h.Bot.AnswerCallbackQuery(cb.ID, stripHTML(clueText), true)
+}
+
+func (h *InboxHandler) HandleClear(cb *telegram.CallbackQuery, user *core.User) {
 	_ = h.InboxRepo.DeleteMessagesByReceiver(user.TelegramID)
+	
+	confirmText := h.I18n.Get(user.LanguageCode, "inbox_cleared")
+	// PERBAIKAN: Hapus "_ ="
+	h.Bot.AnswerCallbackQuery(cb.ID, confirmText, true)
+	
+	h.Bot.EditMessageText(cb.Message.Chat.ID, cb.Message.MessageID, confirmText, nil)
+}
+
+// [PERBARUAN] 1. Tahap Tanya: Ubah tombol hapus jadi pertanyaan konfirmasi
+func (h *InboxHandler) HandleAskClear(cb *telegram.CallbackQuery, user *core.User) {
+	// Teks konfirmasi
+	text := h.I18n.Get(user.LanguageCode, "inbox_confirm_text")
+	
+	// Tombol Ya / Tidak
+	keyboard := telegram.InlineKeyboardMarkup{
+		InlineKeyboard: [][]telegram.InlineKeyboardButton{
+			{
+				{Text: h.I18n.Get(user.LanguageCode, "btn_yes"), CallbackData: "clear_yes"},
+				{Text: h.I18n.Get(user.LanguageCode, "btn_no"), CallbackData: "clear_no"},
+			},
+		},
+	}
+
+	// Edit pesan tombol tadi menjadi pesan konfirmasi
+	h.Bot.EditMessageText(cb.Message.Chat.ID, cb.Message.MessageID, text, &keyboard)
+}
+
+// [PERBARUAN] 2. Tahap Eksekusi: Hapus data jika user klik YA
+func (h *InboxHandler) HandleConfirmClear(cb *telegram.CallbackQuery, user *core.User) {
+	// Hapus pesan di database
+	_ = h.InboxRepo.DeleteMessagesByReceiver(user.TelegramID)
+	
+	confirmText := h.I18n.Get(user.LanguageCode, "inbox_cleared")
+	
+	// Tampilkan Popup Sukses
+	h.Bot.AnswerCallbackQuery(cb.ID, confirmText, true)
+	
+	// Ubah pesan konfirmasi jadi status "Telah Dihapus" (Hilangkan tombol)
+	h.Bot.EditMessageText(cb.Message.Chat.ID, cb.Message.MessageID, confirmText, nil)
+}
+
+// [PERBARUAN] 3. Tahap Batal: Kembalikan tombol seperti semula jika user klik TIDAK
+func (h *InboxHandler) HandleCancelClear(cb *telegram.CallbackQuery, user *core.User) {
+	// Kembalikan ke tampilan tombol awal (👇 + Tombol Clear)
+	initialText := "👇"
+	
+	keyboard := telegram.InlineKeyboardMarkup{
+		InlineKeyboard: [][]telegram.InlineKeyboardButton{
+			{{Text: h.I18n.Get(user.LanguageCode, "btn_clear_inbox"), CallbackData: "clear_inbox"}},
+		},
+	}
+
+	h.Bot.EditMessageText(cb.Message.Chat.ID, cb.Message.MessageID, initialText, &keyboard)
 }

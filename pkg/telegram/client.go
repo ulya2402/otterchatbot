@@ -255,13 +255,15 @@ func (c *Client) DeleteMessage(chatID int64, messageID int) error {
 	return nil
 }
 
-func (c *Client) AnswerCallbackQuery(callbackQueryID string, text string) {
+func (c *Client) AnswerCallbackQuery(callbackQueryID string, text string, showAlert bool) {
 	req := struct {
 		CallbackQueryID string `json:"callback_query_id"`
 		Text            string `json:"text,omitempty"`
+		ShowAlert       bool   `json:"show_alert,omitempty"`
 	}{
 		CallbackQueryID: callbackQueryID,
 		Text:            text,
+		ShowAlert:       showAlert,
 	}
 	jsonData, _ := json.Marshal(req)
 	url := fmt.Sprintf("%s%s/answerCallbackQuery", telegramAPIBase, c.Token)

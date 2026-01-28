@@ -2,7 +2,7 @@
     {
       "id": "vip_weekly",
       "days": 7,
-      "price": 30,
+      "price": 1,
       "title_key": "vip_weekly_title",
       "desc_key": "vip_weekly_desc"
     },

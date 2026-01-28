@@ -5,7 +5,7 @@ import (
 	"log"
 	"otterchatbot/internal/core"
 	"otterchatbot/pkg/database"
-	"sort" // <--- PEMBARUAN: Import sort untuk pengurutan manual
+	"sort" 
 )
 
 type InboxRepository struct {
@@ -59,4 +59,24 @@ func (r *InboxRepository) DeleteMessagesByReceiver(receiverID int64) error {
 		Execute(&results)
 		
 	return err
+}
+
+// Tambahkan fungsi ini di bagian paling bawah file inbox_repo.go
+
+func (r *InboxRepository) GetMessageByID(id int64) (*core.InboxMessage, error) {
+	var messages []core.InboxMessage
+	idStr := fmt.Sprintf("%d", id)
+	
+	err := r.DB.Client.DB.From("inbox_messages").
+		Select("*").
+		Eq("id", idStr).
+		Execute(&messages)
+
+	if err != nil {
+		return nil, err
+	}
+	if len(messages) == 0 {
+		return nil, nil
+	}
+	return &messages[0], nil
 }
