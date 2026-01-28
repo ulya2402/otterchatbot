@@ -121,6 +121,9 @@
 
   "inbox_confirm_text": "⚠️ <b>Konfirmasi Hapus</b>\n\nApakah kamu yakin ingin menghapus SEMUA pesan? Tindakan ini tidak bisa dibatalkan.",
   "btn_yes": "✅ Ya, Hapus",
-  "btn_no": "❌ Batal"
+  "btn_no": "❌ Batal",
+
+  "inbox_inline_title": "📝 Kirim Pesan Rahasia",
+  "inbox_inline_desc": "Klik di sini untuk mengirim pesan rahasia."
 
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"otterchatbot/internal/core"
 	"otterchatbot/internal/repository"
+	"log"
 	"otterchatbot/pkg/i18n"
 	"otterchatbot/pkg/telegram"
 	"strconv"
@@ -29,20 +30,38 @@ func NewInboxHandler(bot *telegram.Client, inboxRepo *repository.InboxRepository
 }
 
 func (h *InboxHandler) HandleInlineQuery(query *telegram.InlineQuery) {
-	resultID := fmt.Sprintf("%d", query.From.ID)
+	// Ubah versi cache ke v3 agar memaksa refresh tampilan di HP
+	resultID := fmt.Sprintf("%d_v3", query.From.ID)
 	deepLink := fmt.Sprintf("https://t.me/%s?start=secret_%d", h.Bot.GetBotUsername(), query.From.ID)
 
-	lang := query.From.LanguageCode
-	
-	// Teks Tombol
-	btnText := h.I18n.Get(lang, "inbox_btn_invite")
-	
-	// JUDUL & DESKRIPSI (Agar di list muncul teksnya)
-	title := "📝 Kirim Pesan Rahasia"
-	desc := "Klik di sini untuk mengirim kartu undangan ke chat ini."
+	// [LOGIKA BARU] Prioritas Bahasa: Database > HP > Default
+	var lang string
 
-	// Trik HTML: Link Gambar Tersembunyi (Zero Width Space)
-	// Ini membuat gambar muncul besar di chat setelah dikirim
+	// 1. Cek Database dulu (Apakah user sudah set /lang?)
+	user, err := h.UserRepo.GetByTelegramID(query.From.ID)
+	if err == nil && user != nil {
+		lang = user.LanguageCode
+		log.Printf("👤 [INLINE] User ditemukan di DB. Menggunakan Bahasa DB: '%s'", lang)
+	} else {
+		// 2. Kalau user baru/belum ada di DB, pakai bahasa HP
+		lang = query.From.LanguageCode
+		log.Printf("📱 [INLINE] User baru/Gagal DB. Menggunakan Bahasa HP: '%s'", lang)
+	}
+
+	// Normalisasi (jika formatnya 'en-US' ambil 'en' saja)
+	if len(lang) > 2 {
+		lang = lang[:2]
+	}
+	// Fallback jika kosong
+	if lang == "" {
+		lang = "en"
+	}
+	
+	// Ambil Teks sesuai bahasa yang sudah ditentukan
+	btnText := h.I18n.Get(lang, "inbox_btn_invite")
+	title := h.I18n.Get(lang, "inbox_inline_title")
+	desc := h.I18n.Get(lang, "inbox_inline_desc")
+
 	textParams := fmt.Sprintf("<a href=\"%s\">&#8205;</a>%s", InviteBannerURL, "Click the button below to send me a secret message! 🤫")
 	
 	keyboard := telegram.InlineKeyboardMarkup{
@@ -51,19 +70,16 @@ func (h *InboxHandler) HandleInlineQuery(query *telegram.InlineQuery) {
 		},
 	}
 
-	// KITA PAKAI "ARTICLE" AGAR SEKALI KLIK LANGSUNG KIRIM (INSTANT)
 	article := telegram.InlineQueryResultArticle{
 		Type:  "article",
 		ID:    resultID,
-		Title: title,       // Judul di List
-		Description: desc,  // Deskripsi di List
+		Title: title,       
+		Description: desc,  
 		InputMessageContent: telegram.InputMessageContent{
 			MessageText: textParams,
 			ParseMode:   "HTML",
 		},
 		ReplyMarkup: &keyboard,
-		
-		// Thumbnail agar di list ada foto kecilnya di samping teks
 		ThumbURL:    InviteBannerURL, 
 	}
 

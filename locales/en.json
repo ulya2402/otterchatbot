@@ -121,5 +121,8 @@
 
   "inbox_confirm_text": "⚠️ <b>Delete Confirmation</b>\n\nAre you sure you want to delete ALL messages? This cannot be undone.",
   "btn_yes": "✅ Yes, Delete",
-  "btn_no": "❌ Cancel"
+  "btn_no": "❌ Cancel",
+
+  "inbox_inline_title": "📝 Send Secret Message",
+  "inbox_inline_desc": "Click here to send an Secret Chat."
 }
